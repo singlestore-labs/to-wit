@@ -1,0 +1,14 @@
+cargo-features = ["per-package-target"]
+
+[package]
+name = "witx-wrapper"
+version = "0.1.0"
+edition = "2018"
+forced-target = "wasm32-wasi"
+
+[dependencies]
+witx2 = { git = "https://github.com/bytecodealliance/witx-bindgen.git" }
+
+[lib]
+crate-type = ["cdylib"]
+
