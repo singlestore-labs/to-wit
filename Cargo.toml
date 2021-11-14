@@ -1,16 +1,14 @@
-cargo-features = ["per-package-target"]
-
 [package]
 name = "witx-wrapper"
 version = "0.1.0"
 edition = "2018"
-forced-target = "wasm32-wasi"
 
 [dependencies]
+anyhow = "1.0"
+libc = "0.2.103"
 witx-bindgen-rust = { git = "https://github.com/bytecodealliance/witx-bindgen.git" }
 witx2 = { git = "https://github.com/bytecodealliance/witx-bindgen.git" }
-wasi-interface-gen = { path = "/home/pvetere/code/wasi-data-rust-orig/crates/wasi-interface-gen" }
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["staticlib", "cdylib"]
 
