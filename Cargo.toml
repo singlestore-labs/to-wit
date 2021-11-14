@@ -1,13 +1,13 @@
 [package]
-name = "witx-wrapper"
+name = "wai-me"
 version = "0.1.0"
 edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
 libc = "0.2.103"
-witx-bindgen-rust = { git = "https://github.com/bytecodealliance/witx-bindgen.git" }
-witx2 = { git = "https://github.com/bytecodealliance/witx-bindgen.git" }
+wai-bindgen-rust = { git = "https://github.com/bytecodealliance/wai-bindgen.git" }
+parser = { git = "https://github.com/bytecodealliance/wai-bindgen.git", package="wai-parser" }
 
 [lib]
 crate-type = ["staticlib", "cdylib"]

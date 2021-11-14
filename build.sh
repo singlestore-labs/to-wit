@@ -9,6 +9,9 @@ check-err()
     fi
 }
 
+cargo build
+check-err "Rust build failed."
+
 TMPFILE=$(mktemp)
 OUTFILE=c-api/main.h
 cbindgen --cpp-compat --lang c++ -o "$TMPFILE"
@@ -23,6 +26,6 @@ check-err "Could not build header file."
 cat $TMPFILE >> $OUTFILE
 check-err "Could not build header file."
 
-g++ -g -o main c-api/main.cpp target/debug/libwitx_wrapper.a -lpthread -ldl -lm
+g++ -g -o target/main c-api/main.cpp target/debug/libwai_me.a -lpthread -ldl -lm
 check-err "Compilation error."
 

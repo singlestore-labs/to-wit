@@ -11,12 +11,12 @@ use std::ffi::{CStr, CString};
 use std::ptr;
 use std::rc::Rc;
 use std::str;
-use witx2::TypeDefKind;
-use witx2::abi;
-use witx2::{Interface, Field, Type, SizeAlign};
+use parser::TypeDefKind;
+use parser::abi;
+use parser::{Interface, Field, Type, SizeAlign};
 
 thread_local! {
-    pub static LAST_ERR: RefCell<Option<WITXError>> = RefCell::new(None);
+    pub static LAST_ERR: RefCell<Option<WAIError>> = RefCell::new(None);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -50,18 +50,18 @@ impl From<abi::WasmType> for WASMType {
 //
 //////////////////////////////////////////////////////////////////////////
 
-pub struct WITX {
+pub struct WAI {
     iface: Rc<Interface>,
-    funcs: HashMap<String, WITXFunction>,    // Function name to index
+    funcs: HashMap<String, WAIFunction>,    // Function name to index
     align: Rc<SizeAlign>
 }
-impl<'a> WITX {
-    fn new(witx: &str) -> Result<WITX> {
-        let iface = Rc::new(Interface::parse("witx", &witx)?);
+impl<'a> WAI {
+    fn new(wai: &str) -> Result<WAI> {
+        let iface = Rc::new(Interface::parse("wai", &wai)?);
         let mut align = SizeAlign::default();
-        align.fill(abi::Direction::Export, &iface);
+        align.fill(abi::AbiVariant::GuestExport, &iface);
         Ok(
-            WITX { 
+            WAI { 
                 iface,
                 funcs: HashMap::new(),
                 align: Rc::new(align)
@@ -72,51 +72,51 @@ impl<'a> WITX {
 
 #[allow(non_camel_case_types)]
 #[repr(C)]
-pub enum WITXSigPart {
+pub enum WAISigPart {
     Params,
     Results,
     RetPtr
 }
 
-pub struct WITXSignature {
+pub struct WAISignature {
     sig: abi::WasmSignature,
 }
 
-pub struct WITXFunction {
+pub struct WAIFunction {
     iface: Rc<Interface>,
     align: Rc<SizeAlign>,
     name:  CString,
-    sig:   WITXSignature,
+    sig:   WAISignature,
     index: usize,  // function index
 }
 
-pub struct WITXTypeDefIter<'a> {
+pub struct WAITypeDefIter<'a> {
     iface:       Rc<Interface>,
     align:       Rc<SizeAlign>,
     inner_iter:  Iter<'a, (String, Type)>,
-    item:        Option<WITXTypeDef<'a>>
+    item:        Option<WAITypeDef<'a>>
 }
 
-pub struct WITXFieldIter<'a> {
+pub struct WAIFieldIter<'a> {
     iface:       Rc<Interface>,
     align:       Rc<SizeAlign>,
     inner_iter:  Iter<'a, Field>,
-    item:        Option<WITXTypeDef<'a>>
+    item:        Option<WAITypeDef<'a>>
 }
 
-pub struct WITXTypeDef<'a> {
+pub struct WAITypeDef<'a> {
     iface:       Rc<Interface>,
     align:       Rc<SizeAlign>,
     name:        CString,
     ty:          &'a Type,
-    subty:       Option<Box<WITXTypeDef<'a>>>,
+    subty:       Option<Box<WAITypeDef<'a>>>,
     //align:       usize
 }
 
 #[allow(non_camel_case_types)]
 #[derive(PartialEq)]
 #[repr(C)]
-pub enum WITXType {
+pub enum WAIType {
     U8,
     U16,
     U32,
@@ -135,14 +135,14 @@ pub enum WITXType {
     Unknown
 }
 
-pub struct WITXError {
+pub struct WAIError {
     c_msg: CString
 }
 
 //////////////////////////////////////////////////////////////////////////
 
 #[no_mangle]
-pub extern "C" fn witx_error_get() -> *const c_char {
+pub extern "C" fn wai_error_get() -> *const c_char {
     LAST_ERR.with(
         |e| 
         match &*e.borrow()
@@ -162,7 +162,7 @@ fn error_set(err: anyhow::Error) -> bool {
                 |e| 
                 e.replace(
                     Some(
-                        WITXError{ 
+                        WAIError{ 
                             c_msg: msg
                         }
                     )
@@ -187,10 +187,10 @@ fn check(r: Result<()>) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn witx_parse(content: *const u8, len: usize, res: *mut *mut WITX) -> bool {
-    check(_witx_parse(content, len, res))
+pub extern "C" fn wai_parse(content: *const u8, len: usize, res: *mut *mut WAI) -> bool {
+    check(_wai_parse(content, len, res))
 }
-fn _witx_parse(content: *const u8, len: usize, res: *mut *mut WITX) -> Result<()> {
+fn _wai_parse(content: *const u8, len: usize, res: *mut *mut WAI) -> Result<()> {
     if content.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
@@ -199,17 +199,17 @@ fn _witx_parse(content: *const u8, len: usize, res: *mut *mut WITX) -> Result<()
     };
 
     // Extract the WASM signature for each function.
-    let mut safe_res = WITX::new(content)?;
+    let mut safe_res = WAI::new(content)?;
 
     // Create a map of each function's name to its index into the interface.
     let funcs = &safe_res.iface.functions;
     for i in 0..funcs.len() {
-        let sig = WITXSignature {
-            sig: safe_res.iface.wasm_signature(abi::Direction::Export, &funcs[i]),
+        let sig = WAISignature {
+            sig: safe_res.iface.wasm_signature(abi::AbiVariant::GuestExport, &funcs[i]),
         };
         safe_res.funcs.insert(
             funcs[i].name.clone(), 
-            WITXFunction {
+            WAIFunction {
                 iface: safe_res.iface.clone(),
                 align: safe_res.align.clone(),
                 name:  CString::new(funcs[i].name.as_str())?,
@@ -227,20 +227,20 @@ fn _witx_parse(content: *const u8, len: usize, res: *mut *mut WITX) -> Result<()
 }
 
 #[no_mangle]
-pub extern "C" fn witx_delete(witx: *mut WITX) {
-    if witx.is_null() {
+pub extern "C" fn wai_delete(wai: *mut WAI) {
+    if wai.is_null() {
         return;
     }
     unsafe {
-        Box::from_raw(witx);
+        Box::from_raw(wai);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn witx_func_name_get(func: *const WITXFunction, res: *mut *const c_char) -> bool {
-    check(_witx_func_name_get(func, res))
+pub extern "C" fn wai_func_name_get(func: *const WAIFunction, res: *mut *const c_char) -> bool {
+    check(_wai_func_name_get(func, res))
 }
-fn _witx_func_name_get(func: *const WITXFunction, res: *mut *const c_char) -> Result<()> {
+fn _wai_func_name_get(func: *const WAIFunction, res: *mut *const c_char) -> Result<()> {
     if func.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
@@ -254,38 +254,38 @@ fn _witx_func_name_get(func: *const WITXFunction, res: *mut *const c_char) -> Re
 }
 
 #[no_mangle]
-pub extern "C" fn witx_func_count_get(witx: *const WITX, res: *mut usize) -> bool {
-    check(_witx_func_count_get(witx, res))
+pub extern "C" fn wai_func_count_get(wai: *const WAI, res: *mut usize) -> bool {
+    check(_wai_func_count_get(wai, res))
 }
-fn _witx_func_count_get(witx: *const WITX, res: *mut usize) -> Result<()> {
-    if witx.is_null() || res.is_null() {
+fn _wai_func_count_get(wai: *const WAI, res: *mut usize) -> Result<()> {
+    if wai.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
-    let witx  = unsafe {
-        &*witx
+    let wai  = unsafe {
+        &*wai
     };
     unsafe {
-        *res = witx.iface.functions.len();
+        *res = wai.iface.functions.len();
     }
     Ok(())
 }
 
 #[no_mangle]
-pub extern "C" fn witx_func_get_by_index(witx: *const WITX, index: usize, res: *mut *const WITXFunction) -> bool {
-    check(_witx_func_get_by_index(witx, index, res))
+pub extern "C" fn wai_func_get_by_index(wai: *const WAI, index: usize, res: *mut *const WAIFunction) -> bool {
+    check(_wai_func_get_by_index(wai, index, res))
 }
-fn _witx_func_get_by_index(witx: *const WITX, index: usize, res: *mut *const WITXFunction) -> Result<()> {
-    if witx.is_null() || res.is_null() {
+fn _wai_func_get_by_index(wai: *const WAI, index: usize, res: *mut *const WAIFunction) -> Result<()> {
+    if wai.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
-    let witx  = unsafe {
-        &*witx
+    let wai  = unsafe {
+        &*wai
     };
-    let name = &witx.iface.functions[index].name;
-    let func = witx.funcs.get(name);
+    let name = &wai.iface.functions[index].name;
+    let func = wai.funcs.get(name);
     if let Some(func) = func {
         unsafe {
-            *res = func as *const WITXFunction;
+            *res = func as *const WAIFunction;
         }
         Ok(())
     } else {
@@ -294,23 +294,23 @@ fn _witx_func_get_by_index(witx: *const WITX, index: usize, res: *mut *const WIT
 }
 
 #[no_mangle]
-pub extern "C" fn witx_func_get_by_name(witx: *const WITX, fname: *const c_char, res: *mut *const WITXFunction) -> bool {
-    check(_witx_func_get_by_name(witx, fname, res))
+pub extern "C" fn wai_func_get_by_name(wai: *const WAI, fname: *const c_char, res: *mut *const WAIFunction) -> bool {
+    check(_wai_func_get_by_name(wai, fname, res))
 }
-fn _witx_func_get_by_name(witx: *const WITX, fname: *const c_char, res: *mut *const WITXFunction) -> Result<()> {
-    if witx.is_null() || fname.is_null() || res.is_null() {
+fn _wai_func_get_by_name(wai: *const WAI, fname: *const c_char, res: *mut *const WAIFunction) -> Result<()> {
+    if wai.is_null() || fname.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
-    let witx  = unsafe {
-        &*witx
+    let wai  = unsafe {
+        &*wai
     };
     let fname = unsafe {
         CStr::from_ptr(fname)
     };
     let fname_str = fname.to_str()?;
-    if let Some(func) = witx.funcs.get(&fname_str.to_string()) {
+    if let Some(func) = wai.funcs.get(&fname_str.to_string()) {
         unsafe {
-            *res = func as *const WITXFunction;
+            *res = func as *const WAIFunction;
         }
         Ok(())
     } else {
@@ -319,23 +319,23 @@ fn _witx_func_get_by_name(witx: *const WITX, fname: *const c_char, res: *mut *co
 }
 
 #[no_mangle]
-pub extern "C" fn witx_func_param_walk<'a>(func: *const WITXFunction, res: *mut *mut WITXTypeDefIter<'a>) -> bool {
-    check(_witx_func_param_walk(func, res))
+pub extern "C" fn wai_func_param_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> bool {
+    check(_wai_func_param_walk(func, res))
 }
-fn _witx_func_param_walk<'a>(func: *const WITXFunction, res: *mut *mut WITXTypeDefIter<'a>) -> Result<()> {
+fn _wai_func_param_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> Result<()> {
     func_typedef_walk(func, false, res)
 }
 
 #[no_mangle]
-pub extern "C" fn witx_func_result_walk<'a>(func: *const WITXFunction, res: *mut *mut WITXTypeDefIter<'a>) -> bool {
-    check(_witx_func_result_walk(func, res))
+pub extern "C" fn wai_func_result_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> bool {
+    check(_wai_func_result_walk(func, res))
 }
-fn _witx_func_result_walk<'a>(func: *const WITXFunction, res: *mut *mut WITXTypeDefIter<'a>) -> Result<()> {
+fn _wai_func_result_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> Result<()> {
     func_typedef_walk(func, true, res)
 }
 
 // Helper for the above two functions.
-fn func_typedef_walk<'a> (func: *const WITXFunction, is_result: bool, res: *mut *mut WITXTypeDefIter<'a>) -> Result<()> {
+fn func_typedef_walk<'a> (func: *const WAIFunction, is_result: bool, res: *mut *mut WAITypeDefIter<'a>) -> Result<()> {
     if func.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -350,10 +350,10 @@ fn func_typedef_walk<'a> (func: *const WITXFunction, is_result: bool, res: *mut 
         }
     };
     let next = inner_iter.next();
-    let item: Option<WITXTypeDef> = match next {
+    let item: Option<WAITypeDef> = match next {
         Some(n) => {
             Some(
-                WITXTypeDef{ 
+                WAITypeDef{ 
                     iface: func.iface.clone(), 
                     align: func.align.clone(),
                     name:  CString::new(n.0.as_str())?,
@@ -367,7 +367,7 @@ fn func_typedef_walk<'a> (func: *const WITXFunction, is_result: bool, res: *mut 
     let res_safe = 
         Box::into_raw(
             Box::new(
-                WITXTypeDefIter {
+                WAITypeDefIter {
                     iface:      func.iface.clone(),
                     align:      func.align.clone(),
                     inner_iter,
@@ -382,7 +382,7 @@ fn func_typedef_walk<'a> (func: *const WITXFunction, is_result: bool, res: *mut 
 }
 
 #[no_mangle]
-pub extern "C" fn witx_typedef_iter_off(iter: *const WITXTypeDefIter) -> bool {
+pub extern "C" fn wai_typedef_iter_off(iter: *const WAITypeDefIter) -> bool {
     if iter.is_null() {
         return true;
     }
@@ -393,14 +393,14 @@ pub extern "C" fn witx_typedef_iter_off(iter: *const WITXTypeDefIter) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn witx_typedef_iter_next(iter: *mut WITXTypeDefIter) -> bool {
-    check(_witx_typedef_iter_next(iter))
+pub extern "C" fn wai_typedef_iter_next(iter: *mut WAITypeDefIter) -> bool {
+    check(_wai_typedef_iter_next(iter))
 }
-fn _witx_typedef_iter_next(iter: *mut WITXTypeDefIter) -> Result<()> {
+fn _wai_typedef_iter_next(iter: *mut WAITypeDefIter) -> Result<()> {
     if iter.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
-    if witx_typedef_iter_off(iter) {
+    if wai_typedef_iter_off(iter) {
         return Err(anyhow!("Iterator out of bounds!"));
     }
     let iter = unsafe {
@@ -410,7 +410,7 @@ fn _witx_typedef_iter_next(iter: *mut WITXTypeDefIter) -> Result<()> {
     iter.item = {
         if let Some(next) = next {
             Some(
-                WITXTypeDef{ 
+                WAITypeDef{ 
                     iface: iter.iface.clone(), 
                     align: iter.align.clone(),
                     name:  CString::new(next.0.as_str())?, 
@@ -426,14 +426,14 @@ fn _witx_typedef_iter_next(iter: *mut WITXTypeDefIter) -> Result<()> {
 }
 
 fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, ty: &'a Type) 
-    -> Result<Option<Box<WITXTypeDef<'a>>>> 
+    -> Result<Option<Box<WAITypeDef<'a>>>> 
 {
     if let Type::Id(id) = ty {
         if let TypeDefKind::List(subty) = &iface.types[*id].kind {
             Ok(
                 Some(
                     Box::new(
-                        WITXTypeDef {
+                        WAITypeDef {
                             iface: iface.clone(),
                             align: align.clone(),
                             name:  CString::new("").unwrap(),
@@ -452,10 +452,10 @@ fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, 
 }
 
 #[no_mangle]
-pub extern "C" fn witx_typedef_iter_at<'a>(iter: *const WITXTypeDefIter<'a>, res: *mut *const WITXTypeDef<'a>) -> bool {
-    check(_witx_typedef_iter_at(iter, res))
+pub extern "C" fn wai_typedef_iter_at<'a>(iter: *const WAITypeDefIter<'a>, res: *mut *const WAITypeDef<'a>) -> bool {
+    check(_wai_typedef_iter_at(iter, res))
 }
-fn _witx_typedef_iter_at<'a>(iter: *const WITXTypeDefIter<'a>, res: *mut *const WITXTypeDef<'a>) -> Result<()> {
+fn _wai_typedef_iter_at<'a>(iter: *const WAITypeDefIter<'a>, res: *mut *const WAITypeDef<'a>) -> Result<()> {
     if iter.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -464,7 +464,7 @@ fn _witx_typedef_iter_at<'a>(iter: *const WITXTypeDefIter<'a>, res: *mut *const 
     };
     if let Some(item) = &iter.item {
         unsafe {
-            *res = item as *const WITXTypeDef;
+            *res = item as *const WAITypeDef;
         }
         Ok(())
     } else {
@@ -473,7 +473,7 @@ fn _witx_typedef_iter_at<'a>(iter: *const WITXTypeDefIter<'a>, res: *mut *const 
 }
 
 #[no_mangle]
-pub extern "C" fn witx_typedef_iter_delete(iter: *mut WITXTypeDefIter) {
+pub extern "C" fn wai_typedef_iter_delete(iter: *mut WAITypeDefIter) {
     if !iter.is_null() {
         unsafe {
             Box::from_raw(iter);
@@ -482,10 +482,10 @@ pub extern "C" fn witx_typedef_iter_delete(iter: *mut WITXTypeDefIter) {
 }
 
 #[no_mangle]
-pub extern "C" fn witx_record_field_walk<'a>(td: *const WITXTypeDef<'a>, res: *mut *mut WITXFieldIter<'a>) -> bool {
-    check(_witx_record_field_walk(td, res))
+pub extern "C" fn wai_record_field_walk<'a>(td: *const WAITypeDef<'a>, res: *mut *mut WAIFieldIter<'a>) -> bool {
+    check(_wai_record_field_walk(td, res))
 }
-fn _witx_record_field_walk<'a>(td: *const WITXTypeDef<'a>, res: *mut *mut WITXFieldIter<'a>) -> Result<()> {
+fn _wai_record_field_walk<'a>(td: *const WAITypeDef<'a>, res: *mut *mut WAIFieldIter<'a>) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -496,10 +496,10 @@ fn _witx_record_field_walk<'a>(td: *const WITXTypeDef<'a>, res: *mut *mut WITXFi
         if let TypeDefKind::Record(rec) = &td.iface.types[*id].kind {
             let mut inner_iter = rec.fields.iter();
             let next = inner_iter.next();
-            let item: Option<WITXTypeDef> = match next {
+            let item: Option<WAITypeDef> = match next {
                 Some(f) => 
                     Some(
-                        WITXTypeDef{ 
+                        WAITypeDef{ 
                             iface: td.iface.clone(), 
                             align: td.align.clone(),
                             name:  CString::new(f.name.as_str())?, 
@@ -512,7 +512,7 @@ fn _witx_record_field_walk<'a>(td: *const WITXTypeDef<'a>, res: *mut *mut WITXFi
             let safe_res = 
                 Box::into_raw(
                     Box::new(
-                        WITXFieldIter {
+                        WAIFieldIter {
                             iface:      td.iface.clone(),
                             align:      td.align.clone(),
                             inner_iter,
@@ -533,7 +533,7 @@ fn _witx_record_field_walk<'a>(td: *const WITXTypeDef<'a>, res: *mut *mut WITXFi
 }
 
 #[no_mangle]
-pub extern "C" fn witx_field_iter_off(iter: *const WITXFieldIter) -> bool {
+pub extern "C" fn wai_field_iter_off(iter: *const WAIFieldIter) -> bool {
     if iter.is_null() {
         return true;
     }
@@ -544,14 +544,14 @@ pub extern "C" fn witx_field_iter_off(iter: *const WITXFieldIter) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn witx_field_iter_next(iter: *mut WITXFieldIter) -> bool {
-    check(_witx_field_iter_next(iter))
+pub extern "C" fn wai_field_iter_next(iter: *mut WAIFieldIter) -> bool {
+    check(_wai_field_iter_next(iter))
 }
-fn _witx_field_iter_next(iter: *mut WITXFieldIter) -> Result<()> {
+fn _wai_field_iter_next(iter: *mut WAIFieldIter) -> Result<()> {
     if iter.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
-    if witx_field_iter_off(iter) {
+    if wai_field_iter_off(iter) {
         return Err(anyhow!("Iterator out of bounds"));
     }
     let iter = unsafe {
@@ -561,7 +561,7 @@ fn _witx_field_iter_next(iter: *mut WITXFieldIter) -> Result<()> {
     iter.item = {
         if let Some(next) = next {
             Some(
-                WITXTypeDef{ 
+                WAITypeDef{ 
                     iface: iter.iface.clone(), 
                     align: iter.align.clone(),
                     name:  CString::new(next.name.as_str())?,
@@ -577,10 +577,10 @@ fn _witx_field_iter_next(iter: *mut WITXFieldIter) -> Result<()> {
 }
 
 #[no_mangle]
-pub extern "C" fn witx_field_iter_at<'a>(iter: *const WITXFieldIter<'a>, res: *mut *const WITXTypeDef<'a>) -> bool {
-    check(_witx_field_iter_at(iter, res))
+pub extern "C" fn wai_field_iter_at<'a>(iter: *const WAIFieldIter<'a>, res: *mut *const WAITypeDef<'a>) -> bool {
+    check(_wai_field_iter_at(iter, res))
 }
-fn _witx_field_iter_at<'a>(iter: *const WITXFieldIter<'a>, res: *mut *const WITXTypeDef<'a>) -> Result<()> {
+fn _wai_field_iter_at<'a>(iter: *const WAIFieldIter<'a>, res: *mut *const WAITypeDef<'a>) -> Result<()> {
     if iter.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -589,7 +589,7 @@ fn _witx_field_iter_at<'a>(iter: *const WITXFieldIter<'a>, res: *mut *const WITX
     };
     if let Some(item) = &iter.item {
         unsafe {
-            *res = item as *const WITXTypeDef;
+            *res = item as *const WAITypeDef;
             Ok(())
         }
     } else {
@@ -598,7 +598,7 @@ fn _witx_field_iter_at<'a>(iter: *const WITXFieldIter<'a>, res: *mut *const WITX
 }
 
 #[no_mangle]
-pub extern "C" fn witx_field_iter_delete(iter: *mut WITXFieldIter) {
+pub extern "C" fn wai_field_iter_delete(iter: *mut WAIFieldIter) {
     if !iter.is_null() {
         unsafe {
             Box::from_raw(iter);
@@ -607,10 +607,10 @@ pub extern "C" fn witx_field_iter_delete(iter: *mut WITXFieldIter) {
 }
 
 #[no_mangle]
-pub extern "C" fn witx_array_elem_typedef_get<'a>(td: *const WITXTypeDef<'a>, res: *mut *const WITXTypeDef<'a>) -> bool {
-    check(_witx_array_elem_typedef_get(td, res))
+pub extern "C" fn wai_array_elem_typedef_get<'a>(td: *const WAITypeDef<'a>, res: *mut *const WAITypeDef<'a>) -> bool {
+    check(_wai_array_elem_typedef_get(td, res))
 }
-fn _witx_array_elem_typedef_get<'a>(td: *const WITXTypeDef<'a>, res: *mut *const WITXTypeDef<'a>) -> Result<()> {
+fn _wai_array_elem_typedef_get<'a>(td: *const WAITypeDef<'a>, res: *mut *const WAITypeDef<'a>) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -623,7 +623,7 @@ fn _witx_array_elem_typedef_get<'a>(td: *const WITXTypeDef<'a>, res: *mut *const
             match &td.subty {
                 Some(subty) => {
                     unsafe {
-                        *res = &**subty as *const WITXTypeDef;
+                        *res = &**subty as *const WAITypeDef;
                     }
                     Ok(())
                 },
@@ -640,10 +640,10 @@ fn _witx_array_elem_typedef_get<'a>(td: *const WITXTypeDef<'a>, res: *mut *const
 }
 
 #[no_mangle]
-pub extern "C" fn witx_typedef_name_get(td: *const WITXTypeDef, res: *mut *const c_char) -> bool {
-    check(_witx_typedef_name_get(td, res))
+pub extern "C" fn wai_typedef_name_get(td: *const WAITypeDef, res: *mut *const c_char) -> bool {
+    check(_wai_typedef_name_get(td, res))
 }
-fn _witx_typedef_name_get(td: *const WITXTypeDef, res: *mut *const c_char) -> Result<()> {
+fn _wai_typedef_name_get(td: *const WAITypeDef, res: *mut *const c_char) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -657,10 +657,10 @@ fn _witx_typedef_name_get(td: *const WITXTypeDef, res: *mut *const c_char) -> Re
 }
 
 #[no_mangle]
-pub extern "C" fn witx_typedef_align_get(td: *const WITXTypeDef, res: *mut usize) -> bool {
-    check(_witx_typedef_align_get(td, res))
+pub extern "C" fn wai_typedef_align_get(td: *const WAITypeDef, res: *mut usize) -> bool {
+    check(_wai_typedef_align_get(td, res))
 }
-fn _witx_typedef_align_get(td: *const WITXTypeDef, res: *mut usize) -> Result<()> {
+fn _wai_typedef_align_get(td: *const WAITypeDef, res: *mut usize) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -675,10 +675,10 @@ fn _witx_typedef_align_get(td: *const WITXTypeDef, res: *mut usize) -> Result<()
 }
 
 #[no_mangle]
-pub extern "C" fn witx_typedef_type_get(td: *const WITXTypeDef, res: *mut WITXType) -> bool {
-    check(_witx_typedef_type_get(td, res))
+pub extern "C" fn wai_typedef_type_get(td: *const WAITypeDef, res: *mut WAIType) -> bool {
+    check(_wai_typedef_type_get(td, res))
 }
-fn _witx_typedef_type_get(td: *const WITXTypeDef, res: *mut WITXType) -> Result<()> {
+fn _wai_typedef_type_get(td: *const WAITypeDef, res: *mut WAIType) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -687,30 +687,30 @@ fn _witx_typedef_type_get(td: *const WITXTypeDef, res: *mut WITXType) -> Result<
     };
     let ty = 
         match td.ty {
-            Type::U8 => WITXType::U8,
-            Type::U16 => WITXType::U16,
-            Type::U32 => WITXType::U32,
-            Type::U64 => WITXType::U64,
-            Type::S8 => WITXType::S8,
-            Type::S16 => WITXType::S16,
-            Type::S32 => WITXType::S32,
-            Type::S64 => WITXType::S64,
-            Type::F32 => WITXType::F32,
-            Type::F64 => WITXType::F64,
-            Type::Char => WITXType::Char,
-            Type::CChar => WITXType::CChar,
-            Type::Usize => WITXType::Usize,
-            Type::Handle(_) => WITXType::Unknown,  // Unsupported for now
+            Type::U8 => WAIType::U8,
+            Type::U16 => WAIType::U16,
+            Type::U32 => WAIType::U32,
+            Type::U64 => WAIType::U64,
+            Type::S8 => WAIType::S8,
+            Type::S16 => WAIType::S16,
+            Type::S32 => WAIType::S32,
+            Type::S64 => WAIType::S64,
+            Type::F32 => WAIType::F32,
+            Type::F64 => WAIType::F64,
+            Type::Char => WAIType::Char,
+            Type::CChar => WAIType::CChar,
+            Type::Usize => WAIType::Usize,
+            Type::Handle(_) => WAIType::Unknown,  // Unsupported for now
             Type::Id(id) => {
                 // Looking for a list or record type.
                 match td.iface.types[*id].kind {
-                    TypeDefKind::Record(_) => WITXType::Record,
-                    TypeDefKind::List(_) => WITXType::List,
-                    _ => WITXType::Unknown
+                    TypeDefKind::Record(_) => WAIType::Record,
+                    TypeDefKind::List(_) => WAIType::List,
+                    _ => WAIType::Unknown
                 }
             },
         };
-    if ty == WITXType::Unknown {
+    if ty == WAIType::Unknown {
         return Err(anyhow!("Unsupported type"));
     }
     unsafe {
@@ -720,10 +720,10 @@ fn _witx_typedef_type_get(td: *const WITXTypeDef, res: *mut WITXType) -> Result<
 }
 
 #[no_mangle]
-pub extern "C" fn witx_func_sig_get(func: *const WITXFunction, res: *mut *const WITXSignature) -> bool {
-    check(_witx_func_sig_get(func, res))
+pub extern "C" fn wai_func_sig_get(func: *const WAIFunction, res: *mut *const WAISignature) -> bool {
+    check(_wai_func_sig_get(func, res))
 }
-fn _witx_func_sig_get(func: *const WITXFunction, res: *mut *const WITXSignature) -> Result<()> {
+fn _wai_func_sig_get(func: *const WAIFunction, res: *mut *const WAISignature) -> Result<()> {
     if func.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -731,16 +731,16 @@ fn _witx_func_sig_get(func: *const WITXFunction, res: *mut *const WITXSignature)
         &*func
     };
     unsafe {
-        *res = &func.sig as *const WITXSignature; 
+        *res = &func.sig as *const WAISignature; 
     }
     Ok(())
 }
 
 #[no_mangle]
-pub extern "C" fn witx_sig_length_get(sig: *const WITXSignature, part: WITXSigPart, res: *mut usize) -> bool {
-    check(_witx_sig_length_get(sig, part, res))
+pub extern "C" fn wai_sig_length_get(sig: *const WAISignature, part: WAISigPart, res: *mut usize) -> bool {
+    check(_wai_sig_length_get(sig, part, res))
 }
-fn _witx_sig_length_get(sig: *const WITXSignature, part: WITXSigPart, res: *mut usize) -> Result<()> {
+fn _wai_sig_length_get(sig: *const WAISignature, part: WAISigPart, res: *mut usize) -> Result<()> {
     if sig.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -749,9 +749,9 @@ fn _witx_sig_length_get(sig: *const WITXSignature, part: WITXSigPart, res: *mut 
     };
     let len =
         match part {
-            WITXSigPart::Params  => sig.sig.params.len(),
-            WITXSigPart::Results => sig.sig.results.len(),
-            WITXSigPart::RetPtr  => 
+            WAISigPart::Params  => sig.sig.params.len(),
+            WAISigPart::Results => sig.sig.results.len(),
+            WAISigPart::RetPtr  => 
                 match &sig.sig.retptr {
                     Some(retptr) => retptr.len(),
                     _ => 0
@@ -764,10 +764,10 @@ fn _witx_sig_length_get(sig: *const WITXSignature, part: WITXSigPart, res: *mut 
 }
 
 #[no_mangle]
-pub extern "C" fn witx_sig_type_get_by_index(sig: *const WITXSignature, part: WITXSigPart, idx: usize, res: *mut WASMType) -> bool {
-    check(_witx_sig_type_get_by_index(sig, part, idx, res))
+pub extern "C" fn wai_sig_type_get_by_index(sig: *const WAISignature, part: WAISigPart, idx: usize, res: *mut WASMType) -> bool {
+    check(_wai_sig_type_get_by_index(sig, part, idx, res))
 }
-fn _witx_sig_type_get_by_index(sig: *const WITXSignature, part: WITXSigPart, idx: usize, res: *mut WASMType) -> Result<()> {
+fn _wai_sig_type_get_by_index(sig: *const WAISignature, part: WAISigPart, idx: usize, res: *mut WASMType) -> Result<()> {
     if sig.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -776,9 +776,9 @@ fn _witx_sig_type_get_by_index(sig: *const WITXSignature, part: WITXSigPart, idx
     };
     let v = 
         match part {
-            WITXSigPart::Params => &sig.sig.params,
-            WITXSigPart::Results => &sig.sig.results,
-            WITXSigPart::RetPtr => 
+            WAISigPart::Params => &sig.sig.params,
+            WAISigPart::Results => &sig.sig.results,
+            WAISigPart::RetPtr => 
                 match &sig.sig.retptr {
                     Some(retptr) => retptr,
                     _ => panic!("retptr has 0 elements!")
