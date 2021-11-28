@@ -675,6 +675,24 @@ fn _wai_typedef_align_get(td: *const WAITypeDef, res: *mut usize) -> Result<()> 
 }
 
 #[no_mangle]
+pub extern "C" fn wai_typedef_size_get(td: *const WAITypeDef, res: *mut usize) -> bool {
+    check(_wai_typedef_size_get(td, res))
+}
+fn _wai_typedef_size_get(td: *const WAITypeDef, res: *mut usize) -> Result<()> {
+    if td.is_null() || res.is_null() {
+        return Err(anyhow!("Invalid argument"));
+    }
+    let td = unsafe {
+        &*td
+    };
+    let a = td.align.size(&td.ty);
+    unsafe {
+        *res = a;
+    }
+    Ok(())
+}
+
+#[no_mangle]
 pub extern "C" fn wai_typedef_type_get(td: *const WAITypeDef, res: *mut WAIType) -> bool {
     check(_wai_typedef_type_get(td, res))
 }

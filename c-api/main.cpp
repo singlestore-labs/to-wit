@@ -93,7 +93,10 @@ void printType(const WAITypeDef* td, int indent)
     uintptr_t align;
     CHECK(wai_typedef_align_get(td, &align));
 
-    printf("[name=%s, type=%s, align=%d]\n", name, waiType2Str(ty), align);
+    uintptr_t size;
+    CHECK(wai_typedef_size_get(td, &size));
+
+    printf("[name=%s, type=%s, size=%d, align=%d]\n", name, waiType2Str(ty), size, align);
     switch (ty)
     {
         case WAIType::Record:

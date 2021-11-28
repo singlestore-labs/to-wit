@@ -94,6 +94,8 @@ bool wai_typedef_name_get(const WAITypeDef *td, const char **res);
 
 bool wai_typedef_align_get(const WAITypeDef *td, uintptr_t *res);
 
+bool wai_typedef_size_get(const WAITypeDef *td, uintptr_t *res);
+
 bool wai_typedef_type_get(const WAITypeDef *td, WAIType *res);
 
 bool wai_func_sig_get(const WAIFunction *func, const WAISignature **res);
