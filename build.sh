@@ -26,6 +26,6 @@ check-err "Could not build header file."
 cat $TMPFILE >> $OUTFILE
 check-err "Could not build header file."
 
-g++ -g -o target/main c-api/main.cpp target/debug/libwai_me.a -lpthread -ldl -lm
+g++ -g -o target/main c-api/main.cpp target/debug/libto_wit.a -lpthread -ldl -lm
 check-err "Compilation error."
 

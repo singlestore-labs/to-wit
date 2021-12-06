@@ -6,13 +6,20 @@
 #include <ostream>
 #include <new>
 
-enum class WAISigPart {
+enum class WASMType {
+  I32,
+  I64,
+  F32,
+  F64,
+};
+
+enum class WITSigPart {
   Params,
   Results,
   RetPtr,
 };
 
-enum class WAIType {
+enum class WITType {
   U8,
   U16,
   U32,
@@ -31,79 +38,72 @@ enum class WAIType {
   Unknown,
 };
 
-enum class WASMType {
-  I32,
-  I64,
-  F32,
-  F64,
-};
+struct WIT;
 
-struct WAI;
+struct WITFieldIter;
 
-struct WAIFieldIter;
+struct WITFunction;
 
-struct WAIFunction;
+struct WITSignature;
 
-struct WAISignature;
+struct WITTypeDef;
 
-struct WAITypeDef;
-
-struct WAITypeDefIter;
+struct WITTypeDefIter;
 
 extern "C" {
 
-const char *wai_error_get();
+const char *wit_error_get();
 
-bool wai_parse(const uint8_t *content, uintptr_t len, WAI **res);
+bool wit_parse(const uint8_t *content, uintptr_t len, WIT **res);
 
-void wai_delete(WAI *wai);
+void wit_delete(WIT *wit);
 
-bool wai_func_name_get(const WAIFunction *func, const char **res);
+bool wit_func_name_get(const WITFunction *func, const char **res);
 
-bool wai_func_count_get(const WAI *wai, uintptr_t *res);
+bool wit_func_count_get(const WIT *wit, uintptr_t *res);
 
-bool wai_func_get_by_index(const WAI *wai, uintptr_t index, const WAIFunction **res);
+bool wit_func_get_by_index(const WIT *wit, uintptr_t index, const WITFunction **res);
 
-bool wai_func_get_by_name(const WAI *wai, const char *fname, const WAIFunction **res);
+bool wit_func_get_by_name(const WIT *wit, const char *fname, const WITFunction **res);
 
-bool wai_func_param_walk(const WAIFunction *func, WAITypeDefIter **res);
+bool wit_func_param_walk(const WITFunction *func, WITTypeDefIter **res);
 
-bool wai_func_result_walk(const WAIFunction *func, WAITypeDefIter **res);
+bool wit_func_result_walk(const WITFunction *func, WITTypeDefIter **res);
 
-bool wai_typedef_iter_off(const WAITypeDefIter *iter);
+bool wit_typedef_iter_off(const WITTypeDefIter *iter);
 
-bool wai_typedef_iter_next(WAITypeDefIter *iter);
+bool wit_typedef_iter_next(WITTypeDefIter *iter);
 
-bool wai_typedef_iter_at(const WAITypeDefIter *iter, const WAITypeDef **res);
+bool wit_typedef_iter_at(const WITTypeDefIter *iter, const WITTypeDef **res);
 
-void wai_typedef_iter_delete(WAITypeDefIter *iter);
+void wit_typedef_iter_delete(WITTypeDefIter *iter);
 
-bool wai_record_field_walk(const WAITypeDef *td, WAIFieldIter **res);
+bool wit_record_field_walk(const WITTypeDef *td, WITFieldIter **res);
 
-bool wai_field_iter_off(const WAIFieldIter *iter);
+bool wit_field_iter_off(const WITFieldIter *iter);
 
-bool wai_field_iter_next(WAIFieldIter *iter);
+bool wit_field_iter_next(WITFieldIter *iter);
 
-bool wai_field_iter_at(const WAIFieldIter *iter, const WAITypeDef **res);
+bool wit_field_iter_at(const WITFieldIter *iter, const WITTypeDef **res);
 
-void wai_field_iter_delete(WAIFieldIter *iter);
+void wit_field_iter_delete(WITFieldIter *iter);
 
-bool wai_array_elem_typedef_get(const WAITypeDef *td, const WAITypeDef **res);
+bool wit_array_elem_typedef_get(const WITTypeDef *td, const WITTypeDef **res);
 
-bool wai_typedef_name_get(const WAITypeDef *td, const char **res);
+bool wit_typedef_name_get(const WITTypeDef *td, const char **res);
 
-bool wai_typedef_align_get(const WAITypeDef *td, uintptr_t *res);
+bool wit_typedef_align_get(const WITTypeDef *td, uintptr_t *res);
 
-bool wai_typedef_size_get(const WAITypeDef *td, uintptr_t *res);
+bool wit_typedef_size_get(const WITTypeDef *td, uintptr_t *res);
 
-bool wai_typedef_type_get(const WAITypeDef *td, WAIType *res);
+bool wit_typedef_type_get(const WITTypeDef *td, WITType *res);
 
-bool wai_func_sig_get(const WAIFunction *func, const WAISignature **res);
+bool wit_func_sig_get(const WITFunction *func, const WITSignature **res);
 
-bool wai_sig_length_get(const WAISignature *sig, WAISigPart part, uintptr_t *res);
+bool wit_sig_length_get(const WITSignature *sig, WITSigPart part, uintptr_t *res);
 
-bool wai_sig_type_get_by_index(const WAISignature *sig,
-                               WAISigPart part,
+bool wit_sig_type_get_by_index(const WITSignature *sig,
+                               WITSigPart part,
                                uintptr_t idx,
                                WASMType *res);
 

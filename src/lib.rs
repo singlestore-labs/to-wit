@@ -16,7 +16,7 @@ use parser::abi;
 use parser::{Interface, Field, Type, SizeAlign};
 
 thread_local! {
-    pub static LAST_ERR: RefCell<Option<WAIError>> = RefCell::new(None);
+    pub static LAST_ERR: RefCell<Option<WITError>> = RefCell::new(None);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -50,18 +50,18 @@ impl From<abi::WasmType> for WASMType {
 //
 //////////////////////////////////////////////////////////////////////////
 
-pub struct WAI {
+pub struct WIT {
     iface: Rc<Interface>,
-    funcs: HashMap<String, WAIFunction>,    // Function name to index
+    funcs: HashMap<String, WITFunction>,    // Function name to index
     align: Rc<SizeAlign>
 }
-impl<'a> WAI {
-    fn new(wai: &str) -> Result<WAI> {
-        let iface = Rc::new(Interface::parse("wai", &wai)?);
+impl<'a> WIT {
+    fn new(wit: &str) -> Result<WIT> {
+        let iface = Rc::new(Interface::parse("wit", &wit)?);
         let mut align = SizeAlign::default();
         align.fill(abi::AbiVariant::GuestExport, &iface);
         Ok(
-            WAI { 
+            WIT { 
                 iface,
                 funcs: HashMap::new(),
                 align: Rc::new(align)
@@ -72,51 +72,51 @@ impl<'a> WAI {
 
 #[allow(non_camel_case_types)]
 #[repr(C)]
-pub enum WAISigPart {
+pub enum WITSigPart {
     Params,
     Results,
     RetPtr
 }
 
-pub struct WAISignature {
+pub struct WITSignature {
     sig: abi::WasmSignature,
 }
 
-pub struct WAIFunction {
+pub struct WITFunction {
     iface: Rc<Interface>,
     align: Rc<SizeAlign>,
     name:  CString,
-    sig:   WAISignature,
+    sig:   WITSignature,
     index: usize,  // function index
 }
 
-pub struct WAITypeDefIter<'a> {
+pub struct WITTypeDefIter<'a> {
     iface:       Rc<Interface>,
     align:       Rc<SizeAlign>,
     inner_iter:  Iter<'a, (String, Type)>,
-    item:        Option<WAITypeDef<'a>>
+    item:        Option<WITTypeDef<'a>>
 }
 
-pub struct WAIFieldIter<'a> {
+pub struct WITFieldIter<'a> {
     iface:       Rc<Interface>,
     align:       Rc<SizeAlign>,
     inner_iter:  Iter<'a, Field>,
-    item:        Option<WAITypeDef<'a>>
+    item:        Option<WITTypeDef<'a>>
 }
 
-pub struct WAITypeDef<'a> {
+pub struct WITTypeDef<'a> {
     iface:       Rc<Interface>,
     align:       Rc<SizeAlign>,
     name:        CString,
     ty:          &'a Type,
-    subty:       Option<Box<WAITypeDef<'a>>>,
+    subty:       Option<Box<WITTypeDef<'a>>>,
     //align:       usize
 }
 
 #[allow(non_camel_case_types)]
 #[derive(PartialEq)]
 #[repr(C)]
-pub enum WAIType {
+pub enum WITType {
     U8,
     U16,
     U32,
@@ -135,14 +135,14 @@ pub enum WAIType {
     Unknown
 }
 
-pub struct WAIError {
+pub struct WITError {
     c_msg: CString
 }
 
 //////////////////////////////////////////////////////////////////////////
 
 #[no_mangle]
-pub extern "C" fn wai_error_get() -> *const c_char {
+pub extern "C" fn wit_error_get() -> *const c_char {
     LAST_ERR.with(
         |e| 
         match &*e.borrow()
@@ -162,7 +162,7 @@ fn error_set(err: anyhow::Error) -> bool {
                 |e| 
                 e.replace(
                     Some(
-                        WAIError{ 
+                        WITError{ 
                             c_msg: msg
                         }
                     )
@@ -187,10 +187,10 @@ fn check(r: Result<()>) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn wai_parse(content: *const u8, len: usize, res: *mut *mut WAI) -> bool {
-    check(_wai_parse(content, len, res))
+pub extern "C" fn wit_parse(content: *const u8, len: usize, res: *mut *mut WIT) -> bool {
+    check(_wit_parse(content, len, res))
 }
-fn _wai_parse(content: *const u8, len: usize, res: *mut *mut WAI) -> Result<()> {
+fn _wit_parse(content: *const u8, len: usize, res: *mut *mut WIT) -> Result<()> {
     if content.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
@@ -199,17 +199,17 @@ fn _wai_parse(content: *const u8, len: usize, res: *mut *mut WAI) -> Result<()> 
     };
 
     // Extract the WASM signature for each function.
-    let mut safe_res = WAI::new(content)?;
+    let mut safe_res = WIT::new(content)?;
 
     // Create a map of each function's name to its index into the interface.
     let funcs = &safe_res.iface.functions;
     for i in 0..funcs.len() {
-        let sig = WAISignature {
+        let sig = WITSignature {
             sig: safe_res.iface.wasm_signature(abi::AbiVariant::GuestExport, &funcs[i]),
         };
         safe_res.funcs.insert(
             funcs[i].name.clone(), 
-            WAIFunction {
+            WITFunction {
                 iface: safe_res.iface.clone(),
                 align: safe_res.align.clone(),
                 name:  CString::new(funcs[i].name.as_str())?,
@@ -227,20 +227,20 @@ fn _wai_parse(content: *const u8, len: usize, res: *mut *mut WAI) -> Result<()> 
 }
 
 #[no_mangle]
-pub extern "C" fn wai_delete(wai: *mut WAI) {
-    if wai.is_null() {
+pub extern "C" fn wit_delete(wit: *mut WIT) {
+    if wit.is_null() {
         return;
     }
     unsafe {
-        Box::from_raw(wai);
+        Box::from_raw(wit);
     }
 }
 
 #[no_mangle]
-pub extern "C" fn wai_func_name_get(func: *const WAIFunction, res: *mut *const c_char) -> bool {
-    check(_wai_func_name_get(func, res))
+pub extern "C" fn wit_func_name_get(func: *const WITFunction, res: *mut *const c_char) -> bool {
+    check(_wit_func_name_get(func, res))
 }
-fn _wai_func_name_get(func: *const WAIFunction, res: *mut *const c_char) -> Result<()> {
+fn _wit_func_name_get(func: *const WITFunction, res: *mut *const c_char) -> Result<()> {
     if func.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
@@ -254,38 +254,38 @@ fn _wai_func_name_get(func: *const WAIFunction, res: *mut *const c_char) -> Resu
 }
 
 #[no_mangle]
-pub extern "C" fn wai_func_count_get(wai: *const WAI, res: *mut usize) -> bool {
-    check(_wai_func_count_get(wai, res))
+pub extern "C" fn wit_func_count_get(wit: *const WIT, res: *mut usize) -> bool {
+    check(_wit_func_count_get(wit, res))
 }
-fn _wai_func_count_get(wai: *const WAI, res: *mut usize) -> Result<()> {
-    if wai.is_null() || res.is_null() {
+fn _wit_func_count_get(wit: *const WIT, res: *mut usize) -> Result<()> {
+    if wit.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
-    let wai  = unsafe {
-        &*wai
+    let wit  = unsafe {
+        &*wit
     };
     unsafe {
-        *res = wai.iface.functions.len();
+        *res = wit.iface.functions.len();
     }
     Ok(())
 }
 
 #[no_mangle]
-pub extern "C" fn wai_func_get_by_index(wai: *const WAI, index: usize, res: *mut *const WAIFunction) -> bool {
-    check(_wai_func_get_by_index(wai, index, res))
+pub extern "C" fn wit_func_get_by_index(wit: *const WIT, index: usize, res: *mut *const WITFunction) -> bool {
+    check(_wit_func_get_by_index(wit, index, res))
 }
-fn _wai_func_get_by_index(wai: *const WAI, index: usize, res: *mut *const WAIFunction) -> Result<()> {
-    if wai.is_null() || res.is_null() {
+fn _wit_func_get_by_index(wit: *const WIT, index: usize, res: *mut *const WITFunction) -> Result<()> {
+    if wit.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
-    let wai  = unsafe {
-        &*wai
+    let wit  = unsafe {
+        &*wit
     };
-    let name = &wai.iface.functions[index].name;
-    let func = wai.funcs.get(name);
+    let name = &wit.iface.functions[index].name;
+    let func = wit.funcs.get(name);
     if let Some(func) = func {
         unsafe {
-            *res = func as *const WAIFunction;
+            *res = func as *const WITFunction;
         }
         Ok(())
     } else {
@@ -294,23 +294,23 @@ fn _wai_func_get_by_index(wai: *const WAI, index: usize, res: *mut *const WAIFun
 }
 
 #[no_mangle]
-pub extern "C" fn wai_func_get_by_name(wai: *const WAI, fname: *const c_char, res: *mut *const WAIFunction) -> bool {
-    check(_wai_func_get_by_name(wai, fname, res))
+pub extern "C" fn wit_func_get_by_name(wit: *const WIT, fname: *const c_char, res: *mut *const WITFunction) -> bool {
+    check(_wit_func_get_by_name(wit, fname, res))
 }
-fn _wai_func_get_by_name(wai: *const WAI, fname: *const c_char, res: *mut *const WAIFunction) -> Result<()> {
-    if wai.is_null() || fname.is_null() || res.is_null() {
+fn _wit_func_get_by_name(wit: *const WIT, fname: *const c_char, res: *mut *const WITFunction) -> Result<()> {
+    if wit.is_null() || fname.is_null() || res.is_null() {
         return Err(anyhow!("Invalid arguments"))
     }
-    let wai  = unsafe {
-        &*wai
+    let wit  = unsafe {
+        &*wit
     };
     let fname = unsafe {
         CStr::from_ptr(fname)
     };
     let fname_str = fname.to_str()?;
-    if let Some(func) = wai.funcs.get(&fname_str.to_string()) {
+    if let Some(func) = wit.funcs.get(&fname_str.to_string()) {
         unsafe {
-            *res = func as *const WAIFunction;
+            *res = func as *const WITFunction;
         }
         Ok(())
     } else {
@@ -319,23 +319,23 @@ fn _wai_func_get_by_name(wai: *const WAI, fname: *const c_char, res: *mut *const
 }
 
 #[no_mangle]
-pub extern "C" fn wai_func_param_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> bool {
-    check(_wai_func_param_walk(func, res))
+pub extern "C" fn wit_func_param_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> bool {
+    check(_wit_func_param_walk(func, res))
 }
-fn _wai_func_param_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> Result<()> {
+fn _wit_func_param_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> Result<()> {
     func_typedef_walk(func, false, res)
 }
 
 #[no_mangle]
-pub extern "C" fn wai_func_result_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> bool {
-    check(_wai_func_result_walk(func, res))
+pub extern "C" fn wit_func_result_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> bool {
+    check(_wit_func_result_walk(func, res))
 }
-fn _wai_func_result_walk<'a>(func: *const WAIFunction, res: *mut *mut WAITypeDefIter<'a>) -> Result<()> {
+fn _wit_func_result_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> Result<()> {
     func_typedef_walk(func, true, res)
 }
 
 // Helper for the above two functions.
-fn func_typedef_walk<'a> (func: *const WAIFunction, is_result: bool, res: *mut *mut WAITypeDefIter<'a>) -> Result<()> {
+fn func_typedef_walk<'a> (func: *const WITFunction, is_result: bool, res: *mut *mut WITTypeDefIter<'a>) -> Result<()> {
     if func.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -350,10 +350,10 @@ fn func_typedef_walk<'a> (func: *const WAIFunction, is_result: bool, res: *mut *
         }
     };
     let next = inner_iter.next();
-    let item: Option<WAITypeDef> = match next {
+    let item: Option<WITTypeDef> = match next {
         Some(n) => {
             Some(
-                WAITypeDef{ 
+                WITTypeDef{ 
                     iface: func.iface.clone(), 
                     align: func.align.clone(),
                     name:  CString::new(n.0.as_str())?,
@@ -367,7 +367,7 @@ fn func_typedef_walk<'a> (func: *const WAIFunction, is_result: bool, res: *mut *
     let res_safe = 
         Box::into_raw(
             Box::new(
-                WAITypeDefIter {
+                WITTypeDefIter {
                     iface:      func.iface.clone(),
                     align:      func.align.clone(),
                     inner_iter,
@@ -382,7 +382,7 @@ fn func_typedef_walk<'a> (func: *const WAIFunction, is_result: bool, res: *mut *
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_iter_off(iter: *const WAITypeDefIter) -> bool {
+pub extern "C" fn wit_typedef_iter_off(iter: *const WITTypeDefIter) -> bool {
     if iter.is_null() {
         return true;
     }
@@ -393,14 +393,14 @@ pub extern "C" fn wai_typedef_iter_off(iter: *const WAITypeDefIter) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_iter_next(iter: *mut WAITypeDefIter) -> bool {
-    check(_wai_typedef_iter_next(iter))
+pub extern "C" fn wit_typedef_iter_next(iter: *mut WITTypeDefIter) -> bool {
+    check(_wit_typedef_iter_next(iter))
 }
-fn _wai_typedef_iter_next(iter: *mut WAITypeDefIter) -> Result<()> {
+fn _wit_typedef_iter_next(iter: *mut WITTypeDefIter) -> Result<()> {
     if iter.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
-    if wai_typedef_iter_off(iter) {
+    if wit_typedef_iter_off(iter) {
         return Err(anyhow!("Iterator out of bounds!"));
     }
     let iter = unsafe {
@@ -410,7 +410,7 @@ fn _wai_typedef_iter_next(iter: *mut WAITypeDefIter) -> Result<()> {
     iter.item = {
         if let Some(next) = next {
             Some(
-                WAITypeDef{ 
+                WITTypeDef{ 
                     iface: iter.iface.clone(), 
                     align: iter.align.clone(),
                     name:  CString::new(next.0.as_str())?, 
@@ -426,14 +426,14 @@ fn _wai_typedef_iter_next(iter: *mut WAITypeDefIter) -> Result<()> {
 }
 
 fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, ty: &'a Type) 
-    -> Result<Option<Box<WAITypeDef<'a>>>> 
+    -> Result<Option<Box<WITTypeDef<'a>>>> 
 {
     if let Type::Id(id) = ty {
         if let TypeDefKind::List(subty) = &iface.types[*id].kind {
             Ok(
                 Some(
                     Box::new(
-                        WAITypeDef {
+                        WITTypeDef {
                             iface: iface.clone(),
                             align: align.clone(),
                             name:  CString::new("").unwrap(),
@@ -452,10 +452,10 @@ fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, 
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_iter_at<'a>(iter: *const WAITypeDefIter<'a>, res: *mut *const WAITypeDef<'a>) -> bool {
-    check(_wai_typedef_iter_at(iter, res))
+pub extern "C" fn wit_typedef_iter_at<'a>(iter: *const WITTypeDefIter<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
+    check(_wit_typedef_iter_at(iter, res))
 }
-fn _wai_typedef_iter_at<'a>(iter: *const WAITypeDefIter<'a>, res: *mut *const WAITypeDef<'a>) -> Result<()> {
+fn _wit_typedef_iter_at<'a>(iter: *const WITTypeDefIter<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
     if iter.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -464,7 +464,7 @@ fn _wai_typedef_iter_at<'a>(iter: *const WAITypeDefIter<'a>, res: *mut *const WA
     };
     if let Some(item) = &iter.item {
         unsafe {
-            *res = item as *const WAITypeDef;
+            *res = item as *const WITTypeDef;
         }
         Ok(())
     } else {
@@ -473,7 +473,7 @@ fn _wai_typedef_iter_at<'a>(iter: *const WAITypeDefIter<'a>, res: *mut *const WA
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_iter_delete(iter: *mut WAITypeDefIter) {
+pub extern "C" fn wit_typedef_iter_delete(iter: *mut WITTypeDefIter) {
     if !iter.is_null() {
         unsafe {
             Box::from_raw(iter);
@@ -482,10 +482,10 @@ pub extern "C" fn wai_typedef_iter_delete(iter: *mut WAITypeDefIter) {
 }
 
 #[no_mangle]
-pub extern "C" fn wai_record_field_walk<'a>(td: *const WAITypeDef<'a>, res: *mut *mut WAIFieldIter<'a>) -> bool {
-    check(_wai_record_field_walk(td, res))
+pub extern "C" fn wit_record_field_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITFieldIter<'a>) -> bool {
+    check(_wit_record_field_walk(td, res))
 }
-fn _wai_record_field_walk<'a>(td: *const WAITypeDef<'a>, res: *mut *mut WAIFieldIter<'a>) -> Result<()> {
+fn _wit_record_field_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITFieldIter<'a>) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -496,10 +496,10 @@ fn _wai_record_field_walk<'a>(td: *const WAITypeDef<'a>, res: *mut *mut WAIField
         if let TypeDefKind::Record(rec) = &td.iface.types[*id].kind {
             let mut inner_iter = rec.fields.iter();
             let next = inner_iter.next();
-            let item: Option<WAITypeDef> = match next {
+            let item: Option<WITTypeDef> = match next {
                 Some(f) => 
                     Some(
-                        WAITypeDef{ 
+                        WITTypeDef{ 
                             iface: td.iface.clone(), 
                             align: td.align.clone(),
                             name:  CString::new(f.name.as_str())?, 
@@ -512,7 +512,7 @@ fn _wai_record_field_walk<'a>(td: *const WAITypeDef<'a>, res: *mut *mut WAIField
             let safe_res = 
                 Box::into_raw(
                     Box::new(
-                        WAIFieldIter {
+                        WITFieldIter {
                             iface:      td.iface.clone(),
                             align:      td.align.clone(),
                             inner_iter,
@@ -533,7 +533,7 @@ fn _wai_record_field_walk<'a>(td: *const WAITypeDef<'a>, res: *mut *mut WAIField
 }
 
 #[no_mangle]
-pub extern "C" fn wai_field_iter_off(iter: *const WAIFieldIter) -> bool {
+pub extern "C" fn wit_field_iter_off(iter: *const WITFieldIter) -> bool {
     if iter.is_null() {
         return true;
     }
@@ -544,14 +544,14 @@ pub extern "C" fn wai_field_iter_off(iter: *const WAIFieldIter) -> bool {
 }
 
 #[no_mangle]
-pub extern "C" fn wai_field_iter_next(iter: *mut WAIFieldIter) -> bool {
-    check(_wai_field_iter_next(iter))
+pub extern "C" fn wit_field_iter_next(iter: *mut WITFieldIter) -> bool {
+    check(_wit_field_iter_next(iter))
 }
-fn _wai_field_iter_next(iter: *mut WAIFieldIter) -> Result<()> {
+fn _wit_field_iter_next(iter: *mut WITFieldIter) -> Result<()> {
     if iter.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
-    if wai_field_iter_off(iter) {
+    if wit_field_iter_off(iter) {
         return Err(anyhow!("Iterator out of bounds"));
     }
     let iter = unsafe {
@@ -561,7 +561,7 @@ fn _wai_field_iter_next(iter: *mut WAIFieldIter) -> Result<()> {
     iter.item = {
         if let Some(next) = next {
             Some(
-                WAITypeDef{ 
+                WITTypeDef{ 
                     iface: iter.iface.clone(), 
                     align: iter.align.clone(),
                     name:  CString::new(next.name.as_str())?,
@@ -577,10 +577,10 @@ fn _wai_field_iter_next(iter: *mut WAIFieldIter) -> Result<()> {
 }
 
 #[no_mangle]
-pub extern "C" fn wai_field_iter_at<'a>(iter: *const WAIFieldIter<'a>, res: *mut *const WAITypeDef<'a>) -> bool {
-    check(_wai_field_iter_at(iter, res))
+pub extern "C" fn wit_field_iter_at<'a>(iter: *const WITFieldIter<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
+    check(_wit_field_iter_at(iter, res))
 }
-fn _wai_field_iter_at<'a>(iter: *const WAIFieldIter<'a>, res: *mut *const WAITypeDef<'a>) -> Result<()> {
+fn _wit_field_iter_at<'a>(iter: *const WITFieldIter<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
     if iter.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -589,7 +589,7 @@ fn _wai_field_iter_at<'a>(iter: *const WAIFieldIter<'a>, res: *mut *const WAITyp
     };
     if let Some(item) = &iter.item {
         unsafe {
-            *res = item as *const WAITypeDef;
+            *res = item as *const WITTypeDef;
             Ok(())
         }
     } else {
@@ -598,7 +598,7 @@ fn _wai_field_iter_at<'a>(iter: *const WAIFieldIter<'a>, res: *mut *const WAITyp
 }
 
 #[no_mangle]
-pub extern "C" fn wai_field_iter_delete(iter: *mut WAIFieldIter) {
+pub extern "C" fn wit_field_iter_delete(iter: *mut WITFieldIter) {
     if !iter.is_null() {
         unsafe {
             Box::from_raw(iter);
@@ -607,10 +607,10 @@ pub extern "C" fn wai_field_iter_delete(iter: *mut WAIFieldIter) {
 }
 
 #[no_mangle]
-pub extern "C" fn wai_array_elem_typedef_get<'a>(td: *const WAITypeDef<'a>, res: *mut *const WAITypeDef<'a>) -> bool {
-    check(_wai_array_elem_typedef_get(td, res))
+pub extern "C" fn wit_array_elem_typedef_get<'a>(td: *const WITTypeDef<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
+    check(_wit_array_elem_typedef_get(td, res))
 }
-fn _wai_array_elem_typedef_get<'a>(td: *const WAITypeDef<'a>, res: *mut *const WAITypeDef<'a>) -> Result<()> {
+fn _wit_array_elem_typedef_get<'a>(td: *const WITTypeDef<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -623,7 +623,7 @@ fn _wai_array_elem_typedef_get<'a>(td: *const WAITypeDef<'a>, res: *mut *const W
             match &td.subty {
                 Some(subty) => {
                     unsafe {
-                        *res = &**subty as *const WAITypeDef;
+                        *res = &**subty as *const WITTypeDef;
                     }
                     Ok(())
                 },
@@ -640,10 +640,10 @@ fn _wai_array_elem_typedef_get<'a>(td: *const WAITypeDef<'a>, res: *mut *const W
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_name_get(td: *const WAITypeDef, res: *mut *const c_char) -> bool {
-    check(_wai_typedef_name_get(td, res))
+pub extern "C" fn wit_typedef_name_get(td: *const WITTypeDef, res: *mut *const c_char) -> bool {
+    check(_wit_typedef_name_get(td, res))
 }
-fn _wai_typedef_name_get(td: *const WAITypeDef, res: *mut *const c_char) -> Result<()> {
+fn _wit_typedef_name_get(td: *const WITTypeDef, res: *mut *const c_char) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -657,10 +657,10 @@ fn _wai_typedef_name_get(td: *const WAITypeDef, res: *mut *const c_char) -> Resu
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_align_get(td: *const WAITypeDef, res: *mut usize) -> bool {
-    check(_wai_typedef_align_get(td, res))
+pub extern "C" fn wit_typedef_align_get(td: *const WITTypeDef, res: *mut usize) -> bool {
+    check(_wit_typedef_align_get(td, res))
 }
-fn _wai_typedef_align_get(td: *const WAITypeDef, res: *mut usize) -> Result<()> {
+fn _wit_typedef_align_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -675,10 +675,10 @@ fn _wai_typedef_align_get(td: *const WAITypeDef, res: *mut usize) -> Result<()> 
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_size_get(td: *const WAITypeDef, res: *mut usize) -> bool {
-    check(_wai_typedef_size_get(td, res))
+pub extern "C" fn wit_typedef_size_get(td: *const WITTypeDef, res: *mut usize) -> bool {
+    check(_wit_typedef_size_get(td, res))
 }
-fn _wai_typedef_size_get(td: *const WAITypeDef, res: *mut usize) -> Result<()> {
+fn _wit_typedef_size_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -693,10 +693,10 @@ fn _wai_typedef_size_get(td: *const WAITypeDef, res: *mut usize) -> Result<()> {
 }
 
 #[no_mangle]
-pub extern "C" fn wai_typedef_type_get(td: *const WAITypeDef, res: *mut WAIType) -> bool {
-    check(_wai_typedef_type_get(td, res))
+pub extern "C" fn wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> bool {
+    check(_wit_typedef_type_get(td, res))
 }
-fn _wai_typedef_type_get(td: *const WAITypeDef, res: *mut WAIType) -> Result<()> {
+fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -705,30 +705,30 @@ fn _wai_typedef_type_get(td: *const WAITypeDef, res: *mut WAIType) -> Result<()>
     };
     let ty = 
         match td.ty {
-            Type::U8 => WAIType::U8,
-            Type::U16 => WAIType::U16,
-            Type::U32 => WAIType::U32,
-            Type::U64 => WAIType::U64,
-            Type::S8 => WAIType::S8,
-            Type::S16 => WAIType::S16,
-            Type::S32 => WAIType::S32,
-            Type::S64 => WAIType::S64,
-            Type::F32 => WAIType::F32,
-            Type::F64 => WAIType::F64,
-            Type::Char => WAIType::Char,
-            Type::CChar => WAIType::CChar,
-            Type::Usize => WAIType::Usize,
-            Type::Handle(_) => WAIType::Unknown,  // Unsupported for now
+            Type::U8 => WITType::U8,
+            Type::U16 => WITType::U16,
+            Type::U32 => WITType::U32,
+            Type::U64 => WITType::U64,
+            Type::S8 => WITType::S8,
+            Type::S16 => WITType::S16,
+            Type::S32 => WITType::S32,
+            Type::S64 => WITType::S64,
+            Type::F32 => WITType::F32,
+            Type::F64 => WITType::F64,
+            Type::Char => WITType::Char,
+            Type::CChar => WITType::CChar,
+            Type::Usize => WITType::Usize,
+            Type::Handle(_) => WITType::Unknown,  // Unsupported for now
             Type::Id(id) => {
                 // Looking for a list or record type.
                 match td.iface.types[*id].kind {
-                    TypeDefKind::Record(_) => WAIType::Record,
-                    TypeDefKind::List(_) => WAIType::List,
-                    _ => WAIType::Unknown
+                    TypeDefKind::Record(_) => WITType::Record,
+                    TypeDefKind::List(_) => WITType::List,
+                    _ => WITType::Unknown
                 }
             },
         };
-    if ty == WAIType::Unknown {
+    if ty == WITType::Unknown {
         return Err(anyhow!("Unsupported type"));
     }
     unsafe {
@@ -738,10 +738,10 @@ fn _wai_typedef_type_get(td: *const WAITypeDef, res: *mut WAIType) -> Result<()>
 }
 
 #[no_mangle]
-pub extern "C" fn wai_func_sig_get(func: *const WAIFunction, res: *mut *const WAISignature) -> bool {
-    check(_wai_func_sig_get(func, res))
+pub extern "C" fn wit_func_sig_get(func: *const WITFunction, res: *mut *const WITSignature) -> bool {
+    check(_wit_func_sig_get(func, res))
 }
-fn _wai_func_sig_get(func: *const WAIFunction, res: *mut *const WAISignature) -> Result<()> {
+fn _wit_func_sig_get(func: *const WITFunction, res: *mut *const WITSignature) -> Result<()> {
     if func.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -749,16 +749,16 @@ fn _wai_func_sig_get(func: *const WAIFunction, res: *mut *const WAISignature) ->
         &*func
     };
     unsafe {
-        *res = &func.sig as *const WAISignature; 
+        *res = &func.sig as *const WITSignature; 
     }
     Ok(())
 }
 
 #[no_mangle]
-pub extern "C" fn wai_sig_length_get(sig: *const WAISignature, part: WAISigPart, res: *mut usize) -> bool {
-    check(_wai_sig_length_get(sig, part, res))
+pub extern "C" fn wit_sig_length_get(sig: *const WITSignature, part: WITSigPart, res: *mut usize) -> bool {
+    check(_wit_sig_length_get(sig, part, res))
 }
-fn _wai_sig_length_get(sig: *const WAISignature, part: WAISigPart, res: *mut usize) -> Result<()> {
+fn _wit_sig_length_get(sig: *const WITSignature, part: WITSigPart, res: *mut usize) -> Result<()> {
     if sig.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -767,9 +767,9 @@ fn _wai_sig_length_get(sig: *const WAISignature, part: WAISigPart, res: *mut usi
     };
     let len =
         match part {
-            WAISigPart::Params  => sig.sig.params.len(),
-            WAISigPart::Results => sig.sig.results.len(),
-            WAISigPart::RetPtr  => 
+            WITSigPart::Params  => sig.sig.params.len(),
+            WITSigPart::Results => sig.sig.results.len(),
+            WITSigPart::RetPtr  => 
                 match &sig.sig.retptr {
                     Some(retptr) => retptr.len(),
                     _ => 0
@@ -782,10 +782,10 @@ fn _wai_sig_length_get(sig: *const WAISignature, part: WAISigPart, res: *mut usi
 }
 
 #[no_mangle]
-pub extern "C" fn wai_sig_type_get_by_index(sig: *const WAISignature, part: WAISigPart, idx: usize, res: *mut WASMType) -> bool {
-    check(_wai_sig_type_get_by_index(sig, part, idx, res))
+pub extern "C" fn wit_sig_type_get_by_index(sig: *const WITSignature, part: WITSigPart, idx: usize, res: *mut WASMType) -> bool {
+    check(_wit_sig_type_get_by_index(sig, part, idx, res))
 }
-fn _wai_sig_type_get_by_index(sig: *const WAISignature, part: WAISigPart, idx: usize, res: *mut WASMType) -> Result<()> {
+fn _wit_sig_type_get_by_index(sig: *const WITSignature, part: WITSigPart, idx: usize, res: *mut WASMType) -> Result<()> {
     if sig.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }
@@ -794,9 +794,9 @@ fn _wai_sig_type_get_by_index(sig: *const WAISignature, part: WAISigPart, idx: u
     };
     let v = 
         match part {
-            WAISigPart::Params => &sig.sig.params,
-            WAISigPart::Results => &sig.sig.results,
-            WAISigPart::RetPtr => 
+            WITSigPart::Params => &sig.sig.params,
+            WITSigPart::Results => &sig.sig.results,
+            WITSigPart::RetPtr => 
                 match &sig.sig.retptr {
                     Some(retptr) => retptr,
                     _ => panic!("retptr has 0 elements!")

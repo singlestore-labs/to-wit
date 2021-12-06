@@ -17,38 +17,38 @@ const char *wasmType2Str(WASMType wt)
     return NULL;
 }
 
-const char *wasmSigPart2Str(WAISigPart part)
+const char *wasmSigPart2Str(WITSigPart part)
 {
     switch (part)
     {
-        case WAISigPart::Params:  return "Params";
-        case WAISigPart::Results: return "Result";
-        case WAISigPart::RetPtr:  return "RetPtr";
+        case WITSigPart::Params:  return "Params";
+        case WITSigPart::Results: return "Result";
+        case WITSigPart::RetPtr:  return "RetPtr";
     }
     assert(false);
     return NULL;
 }
 
-const char *waiType2Str(WAIType wt)
+const char *witType2Str(WITType wt)
 {
     switch (wt)
     {
-        case WAIType::U8:      return "U8";
-        case WAIType::U16:     return "U16";
-        case WAIType::U32:     return "U32";
-        case WAIType::U64:     return "U64";
-        case WAIType::S8:      return "S8";
-        case WAIType::S16:     return "S16";
-        case WAIType::S32:     return "S32";
-        case WAIType::S64:     return "S64";
-        case WAIType::F32:     return "F32";
-        case WAIType::F64:     return "F64";
-        case WAIType::Char:    return "Char";
-        case WAIType::CChar:   return "CChar";
-        case WAIType::Usize:   return "Usize";
-        case WAIType::Record:  return "Record";
-        case WAIType::List:    return "List";
-        case WAIType::Unknown: return "Unknown";
+        case WITType::U8:      return "U8";
+        case WITType::U16:     return "U16";
+        case WITType::U32:     return "U32";
+        case WITType::U64:     return "U64";
+        case WITType::S8:      return "S8";
+        case WITType::S16:     return "S16";
+        case WITType::S32:     return "S32";
+        case WITType::S64:     return "S64";
+        case WITType::F32:     return "F32";
+        case WITType::F64:     return "F64";
+        case WITType::Char:    return "Char";
+        case WITType::CChar:   return "CChar";
+        case WITType::Usize:   return "Usize";
+        case WITType::Record:  return "Record";
+        case WITType::List:    return "List";
+        case WITType::Unknown: return "Unknown";
     }
     assert(false);
     return NULL;
@@ -74,52 +74,52 @@ void printIndent(int level)
         fprintf(                    \
             stderr,                 \
             "ERROR: %s (%s, %d)\n", \
-                wai_error_get(),    \
+                wit_error_get(),    \
                 __FILE__,           \
                 __LINE__);          \
         exit(1);                    \
     }
 
-void printType(const WAITypeDef* td, int indent)
+void printType(const WITTypeDef* td, int indent)
 {
     printIndent(indent);
 
     const char* name;
-    CHECK(wai_typedef_name_get(td, &name));
+    CHECK(wit_typedef_name_get(td, &name));
 
-    WAIType ty;
-    CHECK(wai_typedef_type_get(td, &ty));
+    WITType ty;
+    CHECK(wit_typedef_type_get(td, &ty));
 
     uintptr_t align;
-    CHECK(wai_typedef_align_get(td, &align));
+    CHECK(wit_typedef_align_get(td, &align));
 
     uintptr_t size;
-    CHECK(wai_typedef_size_get(td, &size));
+    CHECK(wit_typedef_size_get(td, &size));
 
-    printf("[name=%s, type=%s, size=%d, align=%d]\n", name, waiType2Str(ty), size, align);
+    printf("[name=%s, type=%s, size=%d, align=%d]\n", name, witType2Str(ty), size, align);
     switch (ty)
     {
-        case WAIType::Record:
+        case WITType::Record:
             {
-                WAIFieldIter* fi;
-                CHECK(wai_record_field_walk(td, &fi));
+                WITFieldIter* fi;
+                CHECK(wit_record_field_walk(td, &fi));
 
-                while (!wai_field_iter_off(fi))
+                while (!wit_field_iter_off(fi))
                 {
-                    const WAITypeDef* fty;
-                    CHECK(wai_field_iter_at(fi, &fty));
+                    const WITTypeDef* fty;
+                    CHECK(wit_field_iter_at(fi, &fty));
 
                     printType(fty, indent + 1);
-                    CHECK(wai_field_iter_next(fi));
+                    CHECK(wit_field_iter_next(fi));
                 }
-                wai_field_iter_delete(fi);
+                wit_field_iter_delete(fi);
             }
             break;
         
-        case WAIType::List:
+        case WITType::List:
             {
-                const WAITypeDef* ty;
-                CHECK(wai_array_elem_typedef_get(td, &ty));
+                const WITTypeDef* ty;
+                CHECK(wit_array_elem_typedef_get(td, &ty));
 
                 printType(ty, indent + 1);
             }
@@ -130,13 +130,13 @@ void printType(const WAITypeDef* td, int indent)
     }
 }
 
-void printSigPart(const WAISignature* sig, WAISigPart part)
+void printSigPart(const WITSignature* sig, WITSigPart part)
 {
     printIndent(1);
     printf("%s: [", wasmSigPart2Str(part));
 
     size_t len;
-    CHECK(wai_sig_length_get(sig, part, &len));
+    CHECK(wit_sig_length_get(sig, part, &len));
 
     for (int i = 0; i < len; ++i)
     {
@@ -144,56 +144,56 @@ void printSigPart(const WAISignature* sig, WAISigPart part)
             printf(", ");
 
         WASMType ty;
-        CHECK(wai_sig_type_get_by_index(sig, part, i, &ty));
+        CHECK(wit_sig_type_get_by_index(sig, part, i, &ty));
 
         printf("%s", wasmType2Str(ty));
     }
     printf("]\n");
 }
 
-void printSig(const WAIFunction* func)
+void printSig(const WITFunction* func)
 {
     printf("Signature:\n");
 
-    const WAISignature* sig;
-    CHECK(wai_func_sig_get(func, &sig));
+    const WITSignature* sig;
+    CHECK(wit_func_sig_get(func, &sig));
 
-    printSigPart(sig, WAISigPart::Params);
-    printSigPart(sig, WAISigPart::Results);
-    printSigPart(sig, WAISigPart::RetPtr);
+    printSigPart(sig, WITSigPart::Params);
+    printSigPart(sig, WITSigPart::Results);
+    printSigPart(sig, WITSigPart::RetPtr);
 }
 
-void printFunc(const WAIFunction* func)
+void printFunc(const WITFunction* func)
 {
     printf("Params:\n");
-    WAITypeDefIter* tdIter;
-    CHECK(wai_func_param_walk(func, &tdIter));
-    while (!wai_typedef_iter_off(tdIter))
+    WITTypeDefIter* tdIter;
+    CHECK(wit_func_param_walk(func, &tdIter));
+    while (!wit_typedef_iter_off(tdIter))
     {
-        const WAITypeDef* td;
-        CHECK(wai_typedef_iter_at(tdIter, &td));
+        const WITTypeDef* td;
+        CHECK(wit_typedef_iter_at(tdIter, &td));
 
         printType(td, 1);
 
-        CHECK(wai_typedef_iter_next(tdIter));
+        CHECK(wit_typedef_iter_next(tdIter));
     }
-    wai_typedef_iter_delete(tdIter);
+    wit_typedef_iter_delete(tdIter);
 
     printf("Results:\n");
-    CHECK(wai_func_result_walk(func, &tdIter));
-    while (!wai_typedef_iter_off(tdIter))
+    CHECK(wit_func_result_walk(func, &tdIter));
+    while (!wit_typedef_iter_off(tdIter))
     {
-        const WAITypeDef* td;
-        CHECK(wai_typedef_iter_at(tdIter, &td));
+        const WITTypeDef* td;
+        CHECK(wit_typedef_iter_at(tdIter, &td));
 
         printType(td, 1);
 
-        CHECK(wai_typedef_iter_next(tdIter));
+        CHECK(wit_typedef_iter_next(tdIter));
     }
-    wai_typedef_iter_delete(tdIter);
+    wit_typedef_iter_delete(tdIter);
 }
 
-char *readWAI(const char *path, long *len)
+char *readWIT(const char *path, long *len)
 {
     FILE* f = fopen(path, "r");
     if (!f)
@@ -233,24 +233,24 @@ int main(int argc, char *argv[])
         usage(argv[0]);
 
     long contentLen;
-    char* content = readWAI(argv[1], &contentLen);
-    WAI* wai;
-    CHECK(wai_parse(reinterpret_cast<uint8_t*>(content), contentLen, &wai));
+    char* content = readWIT(argv[1], &contentLen);
+    WIT* wit;
+    CHECK(wit_parse(reinterpret_cast<uint8_t*>(content), contentLen, &wit));
     free(content);
 
     if (argc == 2)
     {
         size_t count;
-        CHECK(wai_func_count_get(wai, &count));
+        CHECK(wit_func_count_get(wit, &count));
 
         printf("Functions:\n");
         for (int i = 0; i < count; ++i)
         {
-            const WAIFunction* func;
-            CHECK(wai_func_get_by_index(wai, i, &func));
+            const WITFunction* func;
+            CHECK(wit_func_get_by_index(wit, i, &func));
 
             const char* name;
-            CHECK(wai_func_name_get(func, &name));
+            CHECK(wit_func_name_get(func, &name));
 
             printf("  %s\n", name);
         }
@@ -259,14 +259,14 @@ int main(int argc, char *argv[])
     {
         const char *funcName = argv[2];
 
-        const WAIFunction* func;
-        CHECK(wai_func_get_by_name(wai, funcName, &func));
+        const WITFunction* func;
+        CHECK(wit_func_get_by_name(wit, funcName, &func));
     
         printf("Func Name: %s\n", funcName);
         printSig(func);
         printFunc(func);
     }
-    wai_delete(wai);
+    wit_delete(wit);
 
     return 0;
 }

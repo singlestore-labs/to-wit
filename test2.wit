@@ -39,6 +39,6 @@ record HilbertOutput {
 }
 hilbert_encode: function(input : HilbertInput) -> list < HilbertOutput >
 
-wai_source: function() -> string
+wit_source: function() -> string
 
 
