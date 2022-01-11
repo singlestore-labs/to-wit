@@ -1,0 +1,43 @@
+//////////////////////////////////////////////////////////////////////////////
+//
+// This file contains examples of a few different types of interfaces.
+//
+//////////////////////////////////////////////////////////////////////////////
+
+record PolarityScores {
+    compound: f64,
+    positive: f64,
+    negative: f64,
+    neutral: f64,
+}
+
+sentiment: function(input: string) -> PolarityScores
+
+//////////////////////////////////////////////////////////////////////////////
+
+square: function(input: s32) -> s32
+
+//////////////////////////////////////////////////////////////////////////////
+
+record SplitInput {
+    s: string,
+    delimiter: string,
+}
+
+record SplitOutput {
+    c: string,
+}
+
+split: function(input: SplitInput) -> list<SplitOutput>
+
+//////////////////////////////////////////////////////////////////////////////
+
+record HilbertInput {
+    vec: list<u8>,
+    min_value: f64,
+    max_value: f64,
+    scale: f64,
+}
+
+hilbert_encode: function(input: HilbertInput) -> string
+

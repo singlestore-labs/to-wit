@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <inttypes.h>
 #include <assert.h>
-#include "main.h"
+#include "to-wit.h"
 
 const char *wasmType2Str(WASMType wt)
 {
