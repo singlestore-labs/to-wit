@@ -70,6 +70,13 @@ And you'll get this back:
         [name=negative, type=F64, size=8, align=8]
         [name=neutral, type=F64, size=8, align=8]
 
+## Issues
+
+The WIT spec is parsed as a set of guest Exports.  There is currently no
+switch to make it parse the spec as Imports, although an easy workaround is to 
+flip the constant `abi::AbiVariant::GuestExport` to 
+`abi::AbiVariant::GuestImport` in the source file.
+
 ## Resources
 
 * [wit-bindgen](https://github.com/bytecodealliance/wit-bindgen)
