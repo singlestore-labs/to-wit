@@ -4,14 +4,14 @@
 //
 //////////////////////////////////////////////////////////////////////////////
 
-record PolarityScores {
+record polarity-scores {
     compound: f64,
     positive: f64,
     negative: f64,
     neutral: f64,
 }
 
-sentiment: function(input: string) -> PolarityScores
+sentiment: function(input: string) -> polarity-scores
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -19,25 +19,25 @@ square: function(input: s32) -> s32
 
 //////////////////////////////////////////////////////////////////////////////
 
-record SplitInput {
+record split-input {
     s: string,
     delimiter: string,
 }
 
-record SplitOutput {
+record split-output {
     c: string,
 }
 
-split: function(input: SplitInput) -> list<SplitOutput>
+split: function(input: split-input) -> list<split-output>
 
 //////////////////////////////////////////////////////////////////////////////
 
-record HilbertInput {
+record hilbert-input {
     vec: list<u8>,
-    min_value: f64,
-    max_value: f64,
+    min-value: f64,
+    max-value: f64,
     scale: f64,
 }
 
-hilbert_encode: function(input: HilbertInput) -> string
+hilbert-encode: function(input: hilbert-input) -> string
 
