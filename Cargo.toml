@@ -10,5 +10,5 @@ wit-bindgen-rust = { git = "https://github.com/bytecodealliance/wit-bindgen.git"
 parser = { git = "https://github.com/bytecodealliance/wit-bindgen.git", package="wit-parser" }
 
 [lib]
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["staticlib", "cdylib", "rlib"]
 
