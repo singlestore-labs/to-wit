@@ -48,7 +48,9 @@ const char *witType2Str(WITType wt)
         case WITType::Usize:   return "Usize";
         case WITType::Record:  return "Record";
         case WITType::List:    return "List";
+        case WITType::Variant: return "Variant";
         case WITType::Unknown: return "Unknown";
+        case WITType::None:    return "";
     }
     assert(false);
     return NULL;
@@ -96,7 +98,16 @@ void printType(const WITTypeDef* td, int indent)
     uintptr_t size;
     CHECK(wit_typedef_size_get(td, &size));
 
-    printf("[name=%s, type=%s, size=%d, align=%d]\n", name, witType2Str(ty), size, align);
+    printf("[name=%s, type=%s, size=%d, align=%d", 
+        name, witType2Str(ty), size, align);
+    if (ty == WITType::Variant)
+    {
+        uint8_t tag;
+        CHECK(wit_variant_tag_get(td, &tag));
+        printf(", tag=%d", tag);
+    }
+    printf("]\n");
+
     switch (ty)
     {
         case WITType::Record:
@@ -116,6 +127,23 @@ void printType(const WITTypeDef* td, int indent)
             }
             break;
         
+        case WITType::Variant:
+            {
+                WITCaseIter* ci;
+                CHECK(wit_variant_case_walk(td, &ci));
+
+                while (!wit_case_iter_off(ci))
+                {
+                    const WITTypeDef* cty;
+                    CHECK(wit_case_iter_at(ci, &cty));
+
+                    printType(cty, indent + 1);
+                    CHECK(wit_case_iter_next(ci));
+                }
+                wit_case_iter_delete(ci);
+            }
+            break;
+
         case WITType::List:
             {
                 const WITTypeDef* ty;

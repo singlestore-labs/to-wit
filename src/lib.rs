@@ -13,7 +13,7 @@ use std::rc::Rc;
 use std::str;
 use parser::TypeDefKind;
 use parser::abi;
-use parser::{Interface, Field, Type, SizeAlign};
+use parser::{Interface, Int, Case, Field, Type, SizeAlign};
 
 thread_local! {
     pub static LAST_ERR: RefCell<Option<WITError>> = RefCell::new(None);
@@ -92,11 +92,18 @@ pub struct WITFieldIter<'a> {
     item:        Option<WITTypeDef<'a>>
 }
 
+pub struct WITCaseIter<'a> {
+    iface:       Rc<Interface>,
+    align:       Rc<SizeAlign>,
+    inner_iter:  Iter<'a, Case>,
+    item:        Option<WITTypeDef<'a>>
+}
+
 pub struct WITTypeDef<'a> {
     iface:       Rc<Interface>,
     align:       Rc<SizeAlign>,
     name:        CString,
-    ty:          &'a Type,
+    ty:          Option<&'a Type>,
     subty:       Option<Box<WITTypeDef<'a>>>,
     //align:       usize
 }
@@ -120,7 +127,9 @@ pub enum WITType {
     Usize,
     Record,
     List,
-    Unknown
+    Variant,
+    Unknown,
+    None,
 }
 
 pub struct WITError {
@@ -345,8 +354,8 @@ fn func_typedef_walk<'a> (func: *const WITFunction, is_result: bool, res: *mut *
                     iface: func.iface.clone(), 
                     align: func.align.clone(),
                     name:  CString::new(n.0.as_str())?,
-                    ty:    &n.1,
-                    subty: subtypedef_get_maybe(&func.iface, &func.align, &n.1)?,
+                    ty:    Some(&n.1),
+                    subty: subtypedef_get_maybe(&func.iface, &func.align, Some(&n.1))?,
                 }
             )
         },
@@ -402,8 +411,8 @@ fn _wit_typedef_iter_next(iter: *mut WITTypeDefIter) -> Result<()> {
                     iface: iter.iface.clone(), 
                     align: iter.align.clone(),
                     name:  CString::new(next.0.as_str())?, 
-                    ty:    &next.1,
-                    subty: subtypedef_get_maybe(&iter.iface, &iter.align, &next.1)?
+                    ty:    Some(&next.1),
+                    subty: subtypedef_get_maybe(&iter.iface, &iter.align, Some(&next.1))?
                 }
             )
         } else {
@@ -413,9 +422,15 @@ fn _wit_typedef_iter_next(iter: *mut WITTypeDefIter) -> Result<()> {
     Ok(())
 }
 
-fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, ty: &'a Type) 
+fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, ty_opt: Option<&'a Type>) 
     -> Result<Option<Box<WITTypeDef<'a>>>> 
 {
+    let ty: &'a Type;
+    if let Some(t) = ty_opt {
+        ty = t;
+    } else {
+        return Ok(None);
+    }
     if let Type::Id(id) = ty {
         if let TypeDefKind::List(subty) = &iface.types[*id].kind {
             Ok(
@@ -425,8 +440,8 @@ fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, 
                             iface: iface.clone(),
                             align: align.clone(),
                             name:  CString::new("").unwrap(),
-                            ty:    &subty,
-                            subty: subtypedef_get_maybe(iface, align, &subty)?
+                            ty:    Some(&subty),
+                            subty: subtypedef_get_maybe(iface, align, Some(&subty))?
                         }
                     )
                 )
@@ -480,7 +495,7 @@ fn _wit_record_field_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITField
     let td = unsafe {
         &*td
     };
-    if let Type::Id(id) = &td.ty {
+    if let Type::Id(id) = &td.ty.unwrap() {
         if let TypeDefKind::Record(rec) = &td.iface.types[*id].kind {
             let mut inner_iter = rec.fields.iter();
             let next = inner_iter.next();
@@ -491,8 +506,8 @@ fn _wit_record_field_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITField
                             iface: td.iface.clone(), 
                             align: td.align.clone(),
                             name:  CString::new(f.name.as_str())?, 
-                            ty:    &f.ty,
-                            subty: subtypedef_get_maybe(&td.iface, &td.align, &f.ty)?
+                            ty:    Some(&f.ty),
+                            subty: subtypedef_get_maybe(&td.iface, &td.align, Some(&f.ty))?
                         }
                     ),
                 _ => None
@@ -553,8 +568,8 @@ fn _wit_field_iter_next(iter: *mut WITFieldIter) -> Result<()> {
                     iface: iter.iface.clone(), 
                     align: iter.align.clone(),
                     name:  CString::new(next.name.as_str())?,
-                    ty:    &next.ty,
-                    subty: subtypedef_get_maybe(&iter.iface, &iter.align, &next.ty)?
+                    ty:    Some(&next.ty),
+                    subty: subtypedef_get_maybe(&iter.iface, &iter.align, Some(&next.ty))?
                 }
             )
         } else {
@@ -595,6 +610,177 @@ pub extern "C" fn wit_field_iter_delete(iter: *mut WITFieldIter) {
 }
 
 #[no_mangle]
+pub extern "C" fn wit_variant_tag_get<'a>(td: *const WITTypeDef<'a>, res: *mut u8) -> bool {
+    check(_wit_variant_tag_get(td, res))
+}
+fn _wit_variant_tag_get<'a>(td: *const WITTypeDef<'a>, res: *mut u8) -> Result<()> {
+    if td.is_null() || res.is_null() {
+        return Err(anyhow!("Invalid argument"));
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Some(ty) = td.ty {
+        if let Type::Id(id) = ty {
+            if let TypeDefKind::Variant(v) = &td.iface.types[*id].kind {
+                let bits = match v.tag {
+                    Int::U8 => 1,
+                    Int::U16 => 2,
+                    Int::U32 => 4,
+                    Int::U64 => 8,
+                };
+                unsafe {
+                    *res = bits;
+                }
+                Ok(())
+            } else {
+                Err(anyhow!("Invalid argument; must be a Variant type"))
+            }
+        } else {
+            Err(anyhow!("Invalid argument; must be a Variant type"))
+        }
+    } else {
+        unsafe {
+            *res = 0;
+            Ok(())
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn wit_variant_case_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITCaseIter<'a>) -> bool {
+    check(_wit_variant_case_walk(td, res))
+}
+fn _wit_variant_case_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITCaseIter<'a>) -> Result<()> {
+    if td.is_null() || res.is_null() {
+        return Err(anyhow!("Invalid argument"));
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Type::Id(id) = &td.ty.unwrap() {  // TODO - fix this
+        if let TypeDefKind::Variant(v) = &td.iface.types[*id].kind {
+            let mut inner_iter = v.cases.iter();
+            let next = inner_iter.next();
+            let item: Option<WITTypeDef> = match next {
+                Some(c) => {
+                    let ty_opt = match &c.ty {
+                        Some(t) => Some(t),
+                        _ => None,
+                    };
+                    Some(
+                        WITTypeDef{
+                            iface: td.iface.clone(),
+                            align: td.align.clone(),
+                            name:  CString::new(c.name.as_str())?,
+                            ty:    ty_opt,
+                            subty: subtypedef_get_maybe(&td.iface, &td.align, ty_opt)?
+                        }
+                    )
+                },
+                _ => None
+            };
+            let safe_res = 
+                Box::into_raw(
+                    Box::new(
+                        WITCaseIter {
+                            iface:   td.iface.clone(),
+                            align:   td.align.clone(),
+                            inner_iter,
+                            item
+                        }
+                    )
+                );
+            unsafe {
+                *res = safe_res;
+            }
+            Ok(())
+        } else {
+            Err(anyhow!("Invalid argument.  Must be a variant type!"))
+        }
+    } else {
+        Err(anyhow!("Iterator out of bounds!"))
+    }
+}
+#[no_mangle]
+pub extern "C" fn wit_case_iter_off(iter: *const WITCaseIter) -> bool {
+    if iter.is_null() {
+        return true;
+    }
+    let iter = unsafe {
+        &*iter
+    };
+    iter.item.is_none()
+}
+
+#[no_mangle]
+pub extern "C" fn wit_case_iter_next(iter: *mut WITCaseIter) -> bool {
+    check(_wit_case_iter_next(iter))
+}
+fn _wit_case_iter_next(iter: *mut WITCaseIter) -> Result<()> {
+    if iter.is_null() {
+        return Err(anyhow!("Invalid argument"));
+    }
+    if wit_case_iter_off(iter) {
+        return Err(anyhow!("Iterator out of bounds"));
+    }
+    let iter = unsafe {
+        &mut *iter
+    };
+    let next = iter.inner_iter.next();
+    iter.item = {
+        if let Some(next) = next {
+            let ty_opt = match &next.ty {
+                Some(t) => Some(t),
+                _ => None,
+            };
+            Some(
+                WITTypeDef{ 
+                    iface: iter.iface.clone(), 
+                    align: iter.align.clone(),
+                    name:  CString::new(next.name.as_str())?,
+                    ty:    ty_opt,
+                    subty: subtypedef_get_maybe(&iter.iface, &iter.align, ty_opt)?
+                }
+            )
+        } else {
+            None
+        }
+    };
+    Ok(())
+}
+
+#[no_mangle]
+pub extern "C" fn wit_case_iter_at<'a>(iter: *const WITCaseIter<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
+    check(_wit_case_iter_at(iter, res))
+}
+fn _wit_case_iter_at<'a>(iter: *const WITCaseIter<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
+    if iter.is_null() || res.is_null() {
+        return Err(anyhow!("Invalid argument"));
+    }
+    let iter = unsafe {
+        &*iter
+    };
+    if let Some(item) = &iter.item {
+        unsafe {
+            *res = item as *const WITTypeDef;
+            Ok(())
+        }
+    } else {
+        Err(anyhow!("Iterator out of bounds!"))
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn wit_case_iter_delete(iter: *mut WITCaseIter) {
+    if !iter.is_null() {
+        unsafe {
+            Box::from_raw(iter);
+        }
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn wit_array_elem_typedef_get<'a>(td: *const WITTypeDef<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
     check(_wit_array_elem_typedef_get(td, res))
 }
@@ -605,25 +791,29 @@ fn _wit_array_elem_typedef_get<'a>(td: *const WITTypeDef<'a>, res: *mut *const W
     let td = unsafe {
         &*td
     };
-    if let Type::Id(id) = &td.ty {
-        if let TypeDefKind::List(_) = &td.iface.types[*id].kind {
-            // Return cached subtype, if it exists.
-            match &td.subty {
-                Some(subty) => {
-                    unsafe {
-                        *res = &**subty as *const WITTypeDef;
+    if let Some(ty) = td.ty {
+        if let Type::Id(id) = ty {
+            if let TypeDefKind::List(_) = &td.iface.types[*id].kind {
+                // Return cached subtype, if it exists.
+                match &td.subty {
+                    Some(subty) => {
+                        unsafe {
+                            *res = &**subty as *const WITTypeDef;
+                        }
+                        Ok(())
+                    },
+                    _ => {
+                        Err(anyhow!("Could not determine array element type!"))
                     }
-                    Ok(())
-                },
-                _ => {
-                    Err(anyhow!("Could not determine array element type!"))
                 }
+            } else {
+                Err(anyhow!("Invalid parameter.  Must be list type!"))
             }
         } else {
             Err(anyhow!("Invalid parameter.  Must be list type!"))
         }
     } else {
-        Err(anyhow!("Invalid parameter.  Must be list type!"))
+        Err(anyhow!("Type is none!"))
     }
 }
 
@@ -655,9 +845,12 @@ fn _wit_typedef_align_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> 
     let td = unsafe {
         &*td
     };
-    let a = td.align.align(&td.ty);
+    let mut align = 0;
+    if let Some(ty) = td.ty {
+        align = td.align.align(ty);
+    }
     unsafe {
-        *res = a;
+        *res = align;
     }
     Ok(())
 }
@@ -673,9 +866,12 @@ fn _wit_typedef_size_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> {
     let td = unsafe {
         &*td
     };
-    let a = td.align.size(&td.ty);
+    let mut size = 0;
+    if let Some(ty) = td.ty {
+        size = td.align.size(ty);
+    }
     unsafe {
-        *res = a;
+        *res = size;
     }
     Ok(())
 }
@@ -691,36 +887,43 @@ fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()>
     let td = unsafe {
         &*td
     };
-    let ty = 
-        match td.ty {
-            Type::U8 => WITType::U8,
-            Type::U16 => WITType::U16,
-            Type::U32 => WITType::U32,
-            Type::U64 => WITType::U64,
-            Type::S8 => WITType::S8,
-            Type::S16 => WITType::S16,
-            Type::S32 => WITType::S32,
-            Type::S64 => WITType::S64,
-            Type::F32 => WITType::F32,
-            Type::F64 => WITType::F64,
-            Type::Char => WITType::Char,
-            Type::CChar => WITType::CChar,
-            Type::Usize => WITType::Usize,
-            Type::Handle(_) => WITType::Unknown,  // Unsupported for now
-            Type::Id(id) => {
-                // Looking for a list or record type.
-                match td.iface.types[*id].kind {
-                    TypeDefKind::Record(_) => WITType::Record,
-                    TypeDefKind::List(_) => WITType::List,
-                    _ => WITType::Unknown
-                }
-            },
-        };
-    if ty == WITType::Unknown {
-        return Err(anyhow!("Unsupported type"));
-    }
-    unsafe {
-        *res = ty;
+    if let Some(t) = td.ty {
+        let ty = 
+            match t {
+                Type::U8 => WITType::U8,
+                Type::U16 => WITType::U16,
+                Type::U32 => WITType::U32,
+                Type::U64 => WITType::U64,
+                Type::S8 => WITType::S8,
+                Type::S16 => WITType::S16,
+                Type::S32 => WITType::S32,
+                Type::S64 => WITType::S64,
+                Type::F32 => WITType::F32,
+                Type::F64 => WITType::F64,
+                Type::Char => WITType::Char,
+                Type::CChar => WITType::CChar,
+                Type::Usize => WITType::Usize,
+                Type::Handle(_) => WITType::Unknown,  // Unsupported for now
+                Type::Id(id) => {
+                    // Looking for a list or record type.
+                    match td.iface.types[*id].kind {
+                        TypeDefKind::Record(_) => WITType::Record,
+                        TypeDefKind::List(_) => WITType::List,
+                        TypeDefKind::Variant(_) => WITType::Variant,
+                        _ => WITType::Unknown
+                    }
+                },
+            };
+        if ty == WITType::Unknown {
+            return Err(anyhow!("Unsupported type"));
+        }
+        unsafe {
+            *res = ty;
+        }
+    } else {
+        unsafe {
+            *res = WITType::None;
+        }
     }
     Ok(())
 }
