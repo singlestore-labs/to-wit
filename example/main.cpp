@@ -102,6 +102,10 @@ void printType(const WITTypeDef* td, int indent)
         name, witType2Str(ty), size, align);
     if (ty == WITType::Variant)
     {
+        if (wit_variant_is_bool(td))
+        {
+            printf(", subtype=bool");
+        }
         uint8_t tag;
         CHECK(wit_variant_tag_get(td, &tag));
         printf(", tag=%d", tag);
