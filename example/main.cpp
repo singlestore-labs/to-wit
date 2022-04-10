@@ -104,7 +104,11 @@ void printType(const WITTypeDef* td, int indent)
     {
         if (wit_variant_is_bool(td))
         {
-            printf(", subtype=bool");
+            printf(", kind=bool");
+        }
+        else if (wit_variant_is_enum(td))
+        {
+            printf(", kind=enum");
         }
         uint8_t tag;
         CHECK(wit_variant_tag_get(td, &tag));

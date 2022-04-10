@@ -628,6 +628,24 @@ pub extern "C" fn wit_variant_is_bool<'a>(td: *const WITTypeDef<'a>) -> bool {
 }
 
 #[no_mangle]
+pub extern "C" fn wit_variant_is_enum<'a>(td: *const WITTypeDef<'a>) -> bool {
+    if td.is_null() {
+        return false;
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Some(ty) = td.ty {
+        if let Type::Id(id) = ty {
+            if let TypeDefKind::Variant(v) = &td.iface.types[*id].kind {
+                return v.is_enum()
+            }
+        }
+    }
+    false
+}
+
+#[no_mangle]
 pub extern "C" fn wit_variant_tag_get<'a>(td: *const WITTypeDef<'a>, res: *mut u8) -> bool {
     check(_wit_variant_tag_get(td, res))
 }
