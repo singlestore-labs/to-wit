@@ -485,6 +485,42 @@ pub extern "C" fn wit_typedef_iter_delete(iter: *mut WITTypeDefIter) {
 }
 
 #[no_mangle]
+pub extern "C" fn wit_record_is_tuple<'a>(td: *const WITTypeDef<'a>) -> bool {
+    if td.is_null() {
+        return false;
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Some(ty) = td.ty {
+        if let Type::Id(id) = ty {
+            if let TypeDefKind::Record(v) = &td.iface.types[*id].kind {
+                return v.is_tuple()
+            }
+        }
+    }
+    false
+}
+
+#[no_mangle]
+pub extern "C" fn wit_record_is_flags<'a>(td: *const WITTypeDef<'a>) -> bool {
+    if td.is_null() {
+        return false;
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Some(ty) = td.ty {
+        if let Type::Id(id) = ty {
+            if let TypeDefKind::Record(v) = &td.iface.types[*id].kind {
+                return v.is_flags()
+            }
+        }
+    }
+    false
+}
+
+#[no_mangle]
 pub extern "C" fn wit_record_field_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITFieldIter<'a>) -> bool {
     check(_wit_record_field_walk(td, res))
 }

@@ -100,19 +100,39 @@ void printType(const WITTypeDef* td, int indent)
 
     printf("[name=%s, type=%s, size=%d, align=%d", 
         name, witType2Str(ty), size, align);
-    if (ty == WITType::Variant)
+    switch (ty)
     {
-        if (wit_variant_is_bool(td))
-        {
-            printf(", kind=bool");
-        }
-        else if (wit_variant_is_enum(td))
-        {
-            printf(", kind=enum");
-        }
-        uint8_t tag;
-        CHECK(wit_variant_tag_get(td, &tag));
-        printf(", tag=%d", tag);
+        case WITType::Variant:
+            {
+                if (wit_variant_is_bool(td))
+                {
+                    printf(", kind=bool");
+                }
+                else if (wit_variant_is_enum(td))
+                {
+                    printf(", kind=enum");
+                }
+                uint8_t tag;
+                CHECK(wit_variant_tag_get(td, &tag));
+                printf(", tag=%d", tag);
+            }
+            break;
+
+        case WITType::Record:
+            {
+                if (wit_record_is_tuple(td))
+                {
+                    printf(", kind=tuple");
+                }
+                else if (wit_record_is_flags(td))
+                {
+                    printf(", kind=flags");
+                }
+            }
+            break;
+
+        default:
+            break;
     }
     printf("]\n");
 
