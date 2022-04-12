@@ -682,6 +682,48 @@ pub extern "C" fn wit_variant_is_enum<'a>(td: *const WITTypeDef<'a>) -> bool {
 }
 
 #[no_mangle]
+pub extern "C" fn wit_variant_is_option<'a>(td: *const WITTypeDef<'a>) -> bool {
+    if td.is_null() {
+        return false;
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Some(ty) = td.ty {
+        if let Type::Id(id) = ty {
+            if let TypeDefKind::Variant(v) = &td.iface.types[*id].kind {
+                return 
+                    v.cases.len() == 2 &&
+                    v.cases[0].name == "none" && v.cases[0].ty.is_none() &&
+                    v.cases[1].name == "some";
+            }
+        }
+    }
+    false
+}
+
+#[no_mangle]
+pub extern "C" fn wit_variant_is_expected<'a>(td: *const WITTypeDef<'a>) -> bool {
+    if td.is_null() {
+        return false;
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Some(ty) = td.ty {
+        if let Type::Id(id) = ty {
+            if let TypeDefKind::Variant(v) = &td.iface.types[*id].kind {
+                return 
+                    v.cases.len() == 2      &&
+                    v.cases[0].name == "ok" &&
+                    v.cases[1].name == "err";
+            }
+        }
+    }
+    false
+}
+
+#[no_mangle]
 pub extern "C" fn wit_variant_tag_get<'a>(td: *const WITTypeDef<'a>, res: *mut u8) -> bool {
     check(_wit_variant_tag_get(td, res))
 }

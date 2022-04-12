@@ -112,6 +112,14 @@ void printType(const WITTypeDef* td, int indent)
                 {
                     printf(", kind=enum");
                 }
+                else if (wit_variant_is_option(td))
+                {
+                    printf(", kind=option");
+                }
+                else if (wit_variant_is_expected(td))
+                {
+                    printf(", kind=expected");
+                }
                 uint8_t tag;
                 CHECK(wit_variant_tag_get(td, &tag));
                 printf(", tag=%d", tag);
