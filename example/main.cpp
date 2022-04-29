@@ -50,7 +50,6 @@ const char *witType2Str(WITType wt)
         case WITType::List:    return "List";
         case WITType::Variant: return "Variant";
         case WITType::Unknown: return "Unknown";
-        case WITType::None:    return "";
     }
     assert(false);
     return NULL;

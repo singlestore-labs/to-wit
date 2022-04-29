@@ -129,7 +129,6 @@ pub enum WITType {
     List,
     Variant,
     Unknown,
-    None,
 }
 
 pub struct WITError {
@@ -772,7 +771,7 @@ fn _wit_variant_case_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITCaseI
     let td = unsafe {
         &*td
     };
-    if let Type::Id(id) = &td.ty.unwrap() {  // TODO - fix this
+    if let Type::Id(id) = &td.ty.unwrap() {
         if let TypeDefKind::Variant(v) = &td.iface.types[*id].kind {
             let mut inner_iter = v.cases.iter();
             let next = inner_iter.next();
@@ -1036,7 +1035,7 @@ fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()>
         }
     } else {
         unsafe {
-            *res = WITType::None;
+            *res = WITType::Unknown;
         }
     }
     Ok(())
