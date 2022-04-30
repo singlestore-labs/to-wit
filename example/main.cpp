@@ -23,7 +23,6 @@ const char *wasmSigPart2Str(WITSigPart part)
     {
         case WITSigPart::Params:  return "Params";
         case WITSigPart::Results: return "Result";
-        case WITSigPart::RetPtr:  return "RetPtr";
     }
     assert(false);
     return NULL;
@@ -33,6 +32,8 @@ const char *witType2Str(WITType wt)
 {
     switch (wt)
     {
+        case WITType::Unit:    return "Unit";
+        case WITType::Bool:    return "Bool";
         case WITType::U8:      return "U8";
         case WITType::U16:     return "U16";
         case WITType::U32:     return "U32";
@@ -41,11 +42,11 @@ const char *witType2Str(WITType wt)
         case WITType::S16:     return "S16";
         case WITType::S32:     return "S32";
         case WITType::S64:     return "S64";
-        case WITType::F32:     return "F32";
-        case WITType::F64:     return "F64";
+        case WITType::Float32: return "Float32";
+        case WITType::Float64: return "Float64";
         case WITType::Char:    return "Char";
-        case WITType::CChar:   return "CChar";
-        case WITType::Usize:   return "Usize";
+        case WITType::String:  return "String";
+        case WITType::Flags:   return "Flags";
         case WITType::Record:  return "Record";
         case WITType::List:    return "List";
         case WITType::Variant: return "Variant";
@@ -54,14 +55,6 @@ const char *witType2Str(WITType wt)
     assert(false);
     return NULL;
 }
-
-const char* inStr =
-    "record SimpleValue {"                                      "\n"
-    "    i: s64,"                                               "\n"
-    "}"                                                         "\n"
-                                                                "\n"
-    "square: function(input: SimpleValue) -> list<SimpleValue>" "\n"
-    ;
 
 void printIndent(int level)
 {
@@ -103,11 +96,7 @@ void printType(const WITTypeDef* td, int indent)
     {
         case WITType::Variant:
             {
-                if (wit_variant_is_bool(td))
-                {
-                    printf(", kind=bool");
-                }
-                else if (wit_variant_is_enum(td))
+                if (wit_variant_is_enum(td))
                 {
                     printf(", kind=enum");
                 }
@@ -130,10 +119,6 @@ void printType(const WITTypeDef* td, int indent)
                 if (wit_record_is_tuple(td))
                 {
                     printf(", kind=tuple");
-                }
-                else if (wit_record_is_flags(td))
-                {
-                    printf(", kind=flags");
                 }
             }
             break;
@@ -193,10 +178,12 @@ void printType(const WITTypeDef* td, int indent)
     }
 }
 
-void printSigPart(const WITSignature* sig, WITSigPart part)
+void printSigPart(const WITSignature* sig, WITSigPart part, bool indirect)
 {
+    const char* directKind = indirect ? "indirect" : "direct  ";
+
     printIndent(1);
-    printf("%s: [", wasmSigPart2Str(part));
+    printf("%s (%s): [", wasmSigPart2Str(part), directKind);
 
     size_t len;
     CHECK(wit_sig_length_get(sig, part, &len));
@@ -221,9 +208,12 @@ void printSig(const WITFunction* func)
     const WITSignature* sig;
     CHECK(wit_func_sig_get(func, &sig));
 
-    printSigPart(sig, WITSigPart::Params);
-    printSigPart(sig, WITSigPart::Results);
-    printSigPart(sig, WITSigPart::RetPtr);
+    bool prmIndirect, resIndirect;
+    CHECK(wit_sig_is_indirect(sig, WITSigPart::Params, &prmIndirect));
+    CHECK(wit_sig_is_indirect(sig, WITSigPart::Results, &resIndirect));
+
+    printSigPart(sig, WITSigPart::Params, prmIndirect);
+    printSigPart(sig, WITSigPart::Results, resIndirect);
 }
 
 void printFunc(const WITFunction* func)
@@ -242,18 +232,10 @@ void printFunc(const WITFunction* func)
     }
     wit_typedef_iter_delete(tdIter);
 
-    printf("Results:\n");
-    CHECK(wit_func_result_walk(func, &tdIter));
-    while (!wit_typedef_iter_off(tdIter))
-    {
-        const WITTypeDef* td;
-        CHECK(wit_typedef_iter_at(tdIter, &td));
-
-        printType(td, 1);
-
-        CHECK(wit_typedef_iter_next(tdIter));
-    }
-    wit_typedef_iter_delete(tdIter);
+    printf("Result:\n");
+    const WITTypeDef* resTd;
+    CHECK(wit_func_result_get(func, &resTd));
+    printType(resTd, 1);
 }
 
 char *readWIT(const char *path, long *len)
