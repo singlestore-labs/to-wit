@@ -15,6 +15,9 @@ use parser::TypeDefKind;
 use parser::abi;
 use parser::{Interface, Int, Case, Field, Type, SizeAlign};
 
+#[cfg(feature="catch_panics")]
+use std::panic::catch_unwind;
+
 thread_local! {
     pub static LAST_ERR: RefCell<Option<WITError>> = RefCell::new(None);
 }
@@ -137,6 +140,30 @@ pub struct WITError {
 
 //////////////////////////////////////////////////////////////////////////
 
+#[cfg(feature="catch_panics")]
+macro_rules! ffi_return {
+    ($e:expr) => {{
+        let res = catch_unwind(|| {
+            check($e)
+        });
+        match res {
+            Ok(_) => true,
+            Err(e) => {
+                error_set(anyhow!("Caught Rust panic: {:?}", e));
+                false
+            },
+        }
+    }}
+}
+#[cfg(not(feature="catch_panics"))]
+macro_rules! ffi_return {
+    ($e:expr) => {
+        check($e)
+    }
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 #[no_mangle]
 pub extern "C" fn wit_error_get() -> *const c_char {
     LAST_ERR.with(
@@ -184,7 +211,7 @@ fn check(r: Result<()>) -> bool {
 
 #[no_mangle]
 pub extern "C" fn wit_parse(content: *const u8, len: usize, res: *mut *mut WIT) -> bool {
-    check(_wit_parse(content, len, res))
+    ffi_return!(_wit_parse(content, len, res))
 }
 fn _wit_parse(content: *const u8, len: usize, res: *mut *mut WIT) -> Result<()> {
     if content.is_null() || res.is_null() {
@@ -234,7 +261,7 @@ pub extern "C" fn wit_delete(wit: *mut WIT) {
 
 #[no_mangle]
 pub extern "C" fn wit_func_name_get(func: *const WITFunction, res: *mut *const c_char) -> bool {
-    check(_wit_func_name_get(func, res))
+    ffi_return!(_wit_func_name_get(func, res))
 }
 fn _wit_func_name_get(func: *const WITFunction, res: *mut *const c_char) -> Result<()> {
     if func.is_null() || res.is_null() {
@@ -251,7 +278,7 @@ fn _wit_func_name_get(func: *const WITFunction, res: *mut *const c_char) -> Resu
 
 #[no_mangle]
 pub extern "C" fn wit_func_count_get(wit: *const WIT, res: *mut usize) -> bool {
-    check(_wit_func_count_get(wit, res))
+    ffi_return!(_wit_func_count_get(wit, res))
 }
 fn _wit_func_count_get(wit: *const WIT, res: *mut usize) -> Result<()> {
     if wit.is_null() || res.is_null() {
@@ -268,7 +295,7 @@ fn _wit_func_count_get(wit: *const WIT, res: *mut usize) -> Result<()> {
 
 #[no_mangle]
 pub extern "C" fn wit_func_get_by_index(wit: *const WIT, index: usize, res: *mut *const WITFunction) -> bool {
-    check(_wit_func_get_by_index(wit, index, res))
+    ffi_return!(_wit_func_get_by_index(wit, index, res))
 }
 fn _wit_func_get_by_index(wit: *const WIT, index: usize, res: *mut *const WITFunction) -> Result<()> {
     if wit.is_null() || res.is_null() {
@@ -291,7 +318,7 @@ fn _wit_func_get_by_index(wit: *const WIT, index: usize, res: *mut *const WITFun
 
 #[no_mangle]
 pub extern "C" fn wit_func_get_by_name(wit: *const WIT, fname: *const c_char, res: *mut *const WITFunction) -> bool {
-    check(_wit_func_get_by_name(wit, fname, res))
+    ffi_return!(_wit_func_get_by_name(wit, fname, res))
 }
 fn _wit_func_get_by_name(wit: *const WIT, fname: *const c_char, res: *mut *const WITFunction) -> Result<()> {
     if wit.is_null() || fname.is_null() || res.is_null() {
@@ -316,7 +343,7 @@ fn _wit_func_get_by_name(wit: *const WIT, fname: *const c_char, res: *mut *const
 
 #[no_mangle]
 pub extern "C" fn wit_func_param_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> bool {
-    check(_wit_func_param_walk(func, res))
+    ffi_return!(_wit_func_param_walk(func, res))
 }
 fn _wit_func_param_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> Result<()> {
     func_typedef_walk(func, false, res)
@@ -324,7 +351,7 @@ fn _wit_func_param_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefI
 
 #[no_mangle]
 pub extern "C" fn wit_func_result_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> bool {
-    check(_wit_func_result_walk(func, res))
+    ffi_return!(_wit_func_result_walk(func, res))
 }
 fn _wit_func_result_walk<'a>(func: *const WITFunction, res: *mut *mut WITTypeDefIter<'a>) -> Result<()> {
     func_typedef_walk(func, true, res)
@@ -390,7 +417,7 @@ pub extern "C" fn wit_typedef_iter_off(iter: *const WITTypeDefIter) -> bool {
 
 #[no_mangle]
 pub extern "C" fn wit_typedef_iter_next(iter: *mut WITTypeDefIter) -> bool {
-    check(_wit_typedef_iter_next(iter))
+    ffi_return!(_wit_typedef_iter_next(iter))
 }
 fn _wit_typedef_iter_next(iter: *mut WITTypeDefIter) -> Result<()> {
     if iter.is_null() {
@@ -455,7 +482,7 @@ fn subtypedef_get_maybe<'a>(iface: &'a Rc<Interface>, align: &'a Rc<SizeAlign>, 
 
 #[no_mangle]
 pub extern "C" fn wit_typedef_iter_at<'a>(iter: *const WITTypeDefIter<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
-    check(_wit_typedef_iter_at(iter, res))
+    ffi_return!(_wit_typedef_iter_at(iter, res))
 }
 fn _wit_typedef_iter_at<'a>(iter: *const WITTypeDefIter<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
     if iter.is_null() || res.is_null() {
@@ -521,7 +548,7 @@ pub extern "C" fn wit_record_is_flags<'a>(td: *const WITTypeDef<'a>) -> bool {
 
 #[no_mangle]
 pub extern "C" fn wit_record_field_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITFieldIter<'a>) -> bool {
-    check(_wit_record_field_walk(td, res))
+    ffi_return!(_wit_record_field_walk(td, res))
 }
 fn _wit_record_field_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITFieldIter<'a>) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -583,7 +610,7 @@ pub extern "C" fn wit_field_iter_off(iter: *const WITFieldIter) -> bool {
 
 #[no_mangle]
 pub extern "C" fn wit_field_iter_next(iter: *mut WITFieldIter) -> bool {
-    check(_wit_field_iter_next(iter))
+    ffi_return!(_wit_field_iter_next(iter))
 }
 fn _wit_field_iter_next(iter: *mut WITFieldIter) -> Result<()> {
     if iter.is_null() {
@@ -616,7 +643,7 @@ fn _wit_field_iter_next(iter: *mut WITFieldIter) -> Result<()> {
 
 #[no_mangle]
 pub extern "C" fn wit_field_iter_at<'a>(iter: *const WITFieldIter<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
-    check(_wit_field_iter_at(iter, res))
+    ffi_return!(_wit_field_iter_at(iter, res))
 }
 fn _wit_field_iter_at<'a>(iter: *const WITFieldIter<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
     if iter.is_null() || res.is_null() {
@@ -724,7 +751,7 @@ pub extern "C" fn wit_variant_is_expected<'a>(td: *const WITTypeDef<'a>) -> bool
 
 #[no_mangle]
 pub extern "C" fn wit_variant_tag_get<'a>(td: *const WITTypeDef<'a>, res: *mut u8) -> bool {
-    check(_wit_variant_tag_get(td, res))
+    ffi_return!(_wit_variant_tag_get(td, res))
 }
 fn _wit_variant_tag_get<'a>(td: *const WITTypeDef<'a>, res: *mut u8) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -762,7 +789,7 @@ fn _wit_variant_tag_get<'a>(td: *const WITTypeDef<'a>, res: *mut u8) -> Result<(
 
 #[no_mangle]
 pub extern "C" fn wit_variant_case_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITCaseIter<'a>) -> bool {
-    check(_wit_variant_case_walk(td, res))
+    ffi_return!(_wit_variant_case_walk(td, res))
 }
 fn _wit_variant_case_walk<'a>(td: *const WITTypeDef<'a>, res: *mut *mut WITCaseIter<'a>) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -828,7 +855,7 @@ pub extern "C" fn wit_case_iter_off(iter: *const WITCaseIter) -> bool {
 
 #[no_mangle]
 pub extern "C" fn wit_case_iter_next(iter: *mut WITCaseIter) -> bool {
-    check(_wit_case_iter_next(iter))
+    ffi_return!(_wit_case_iter_next(iter))
 }
 fn _wit_case_iter_next(iter: *mut WITCaseIter) -> Result<()> {
     if iter.is_null() {
@@ -865,7 +892,7 @@ fn _wit_case_iter_next(iter: *mut WITCaseIter) -> Result<()> {
 
 #[no_mangle]
 pub extern "C" fn wit_case_iter_at<'a>(iter: *const WITCaseIter<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
-    check(_wit_case_iter_at(iter, res))
+    ffi_return!(_wit_case_iter_at(iter, res))
 }
 fn _wit_case_iter_at<'a>(iter: *const WITCaseIter<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
     if iter.is_null() || res.is_null() {
@@ -895,7 +922,7 @@ pub extern "C" fn wit_case_iter_delete(iter: *mut WITCaseIter) {
 
 #[no_mangle]
 pub extern "C" fn wit_array_elem_typedef_get<'a>(td: *const WITTypeDef<'a>, res: *mut *const WITTypeDef<'a>) -> bool {
-    check(_wit_array_elem_typedef_get(td, res))
+    ffi_return!(_wit_array_elem_typedef_get(td, res))
 }
 fn _wit_array_elem_typedef_get<'a>(td: *const WITTypeDef<'a>, res: *mut *const WITTypeDef<'a>) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -932,7 +959,7 @@ fn _wit_array_elem_typedef_get<'a>(td: *const WITTypeDef<'a>, res: *mut *const W
 
 #[no_mangle]
 pub extern "C" fn wit_typedef_name_get(td: *const WITTypeDef, res: *mut *const c_char) -> bool {
-    check(_wit_typedef_name_get(td, res))
+    ffi_return!(_wit_typedef_name_get(td, res))
 }
 fn _wit_typedef_name_get(td: *const WITTypeDef, res: *mut *const c_char) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -949,7 +976,7 @@ fn _wit_typedef_name_get(td: *const WITTypeDef, res: *mut *const c_char) -> Resu
 
 #[no_mangle]
 pub extern "C" fn wit_typedef_align_get(td: *const WITTypeDef, res: *mut usize) -> bool {
-    check(_wit_typedef_align_get(td, res))
+    ffi_return!(_wit_typedef_align_get(td, res))
 }
 fn _wit_typedef_align_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -970,7 +997,7 @@ fn _wit_typedef_align_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> 
 
 #[no_mangle]
 pub extern "C" fn wit_typedef_size_get(td: *const WITTypeDef, res: *mut usize) -> bool {
-    check(_wit_typedef_size_get(td, res))
+    ffi_return!(_wit_typedef_size_get(td, res))
 }
 fn _wit_typedef_size_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -991,7 +1018,7 @@ fn _wit_typedef_size_get(td: *const WITTypeDef, res: *mut usize) -> Result<()> {
 
 #[no_mangle]
 pub extern "C" fn wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> bool {
-    check(_wit_typedef_type_get(td, res))
+    ffi_return!(_wit_typedef_type_get(td, res))
 }
 fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()> {
     if td.is_null() || res.is_null() {
@@ -1043,7 +1070,7 @@ fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()>
 
 #[no_mangle]
 pub extern "C" fn wit_func_sig_get(func: *const WITFunction, res: *mut *const WITSignature) -> bool {
-    check(_wit_func_sig_get(func, res))
+    ffi_return!(_wit_func_sig_get(func, res))
 }
 fn _wit_func_sig_get(func: *const WITFunction, res: *mut *const WITSignature) -> Result<()> {
     if func.is_null() || res.is_null() {
@@ -1060,7 +1087,7 @@ fn _wit_func_sig_get(func: *const WITFunction, res: *mut *const WITSignature) ->
 
 #[no_mangle]
 pub extern "C" fn wit_sig_length_get(sig: *const WITSignature, part: WITSigPart, res: *mut usize) -> bool {
-    check(_wit_sig_length_get(sig, part, res))
+    ffi_return!(_wit_sig_length_get(sig, part, res))
 }
 fn _wit_sig_length_get(sig: *const WITSignature, part: WITSigPart, res: *mut usize) -> Result<()> {
     if sig.is_null() || res.is_null() {
@@ -1087,7 +1114,7 @@ fn _wit_sig_length_get(sig: *const WITSignature, part: WITSigPart, res: *mut usi
 
 #[no_mangle]
 pub extern "C" fn wit_sig_type_get_by_index(sig: *const WITSignature, part: WITSigPart, idx: usize, res: *mut WASMType) -> bool {
-    check(_wit_sig_type_get_by_index(sig, part, idx, res))
+    ffi_return!(_wit_sig_type_get_by_index(sig, part, idx, res))
 }
 fn _wit_sig_type_get_by_index(sig: *const WITSignature, part: WITSigPart, idx: usize, res: *mut WASMType) -> Result<()> {
     if sig.is_null() || res.is_null() {

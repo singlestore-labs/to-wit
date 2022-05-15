@@ -12,3 +12,7 @@ parser = { git = "https://github.com/bytecodealliance/wit-bindgen.git", package=
 [lib]
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[features]
+default = []
+catch_panics = []
+
