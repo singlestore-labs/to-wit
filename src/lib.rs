@@ -147,7 +147,7 @@ macro_rules! ffi_return {
             check($e)
         });
         match res {
-            Ok(_) => true,
+            Ok(r) => r,
             Err(e) => {
                 error_set(anyhow!("Caught Rust panic: {:?}", e));
                 false
