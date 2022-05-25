@@ -176,6 +176,13 @@ pub extern "C" fn wit_error_get() -> *const c_char {
     )
 }
 
+#[no_mangle]
+pub extern "C" fn wit_error_clear() {
+    LAST_ERR.with(|e| {
+        e.take();
+    });
+}
+
 fn error_set(err: anyhow::Error) -> bool { 
     let err_res = CString::new(err.to_string());
     match err_res {
