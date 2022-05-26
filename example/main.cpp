@@ -75,27 +75,28 @@ void printIndent(int level)
         fprintf(                    \
             stderr,                 \
             "ERROR: %s (%s, %d)\n", \
-                wit_error_get(),    \
+                wit_error_get(s),   \
                 __FILE__,           \
                 __LINE__);          \
+        wit_session_delete(s);      \
         exit(1);                    \
     }
 
-void printType(const WITTypeDef* td, int indent)
+void printType(WITSession* s, const WITTypeDef* td, int indent)
 {
     printIndent(indent);
 
     const char* name;
-    CHECK(wit_typedef_name_get(td, &name));
+    CHECK(wit_typedef_name_get(s, td, &name));
 
     WITType ty;
-    CHECK(wit_typedef_type_get(td, &ty));
+    CHECK(wit_typedef_type_get(s, td, &ty));
 
     uintptr_t align;
-    CHECK(wit_typedef_align_get(td, &align));
+    CHECK(wit_typedef_align_get(s, td, &align));
 
     uintptr_t size;
-    CHECK(wit_typedef_size_get(td, &size));
+    CHECK(wit_typedef_size_get(s, td, &size));
 
     printf("[name=%s, type=%s, size=%d, align=%d", 
         name, witType2Str(ty), size, align);
@@ -103,35 +104,35 @@ void printType(const WITTypeDef* td, int indent)
     {
         case WITType::Variant:
             {
-                if (wit_variant_is_bool(td))
+                if (wit_variant_is_bool(s, td))
                 {
                     printf(", kind=bool");
                 }
-                else if (wit_variant_is_enum(td))
+                else if (wit_variant_is_enum(s, td))
                 {
                     printf(", kind=enum");
                 }
-                else if (wit_variant_is_option(td))
+                else if (wit_variant_is_option(s, td))
                 {
                     printf(", kind=option");
                 }
-                else if (wit_variant_is_expected(td))
+                else if (wit_variant_is_expected(s, td))
                 {
                     printf(", kind=expected");
                 }
                 uint8_t tag;
-                CHECK(wit_variant_tag_get(td, &tag));
+                CHECK(wit_variant_tag_get(s, td, &tag));
                 printf(", tag=%d", tag);
             }
             break;
 
         case WITType::Record:
             {
-                if (wit_record_is_tuple(td))
+                if (wit_record_is_tuple(s, td))
                 {
                     printf(", kind=tuple");
                 }
-                else if (wit_record_is_flags(td))
+                else if (wit_record_is_flags(s, td))
                 {
                     printf(", kind=flags");
                 }
@@ -148,43 +149,43 @@ void printType(const WITTypeDef* td, int indent)
         case WITType::Record:
             {
                 WITFieldIter* fi;
-                CHECK(wit_record_field_walk(td, &fi));
+                CHECK(wit_record_field_walk(s, td, &fi));
 
-                while (!wit_field_iter_off(fi))
+                while (!wit_field_iter_off(s, fi))
                 {
                     const WITTypeDef* fty;
-                    CHECK(wit_field_iter_at(fi, &fty));
+                    CHECK(wit_field_iter_at(s, fi, &fty));
 
-                    printType(fty, indent + 1);
-                    CHECK(wit_field_iter_next(fi));
+                    printType(s, fty, indent + 1);
+                    CHECK(wit_field_iter_next(s, fi));
                 }
-                wit_field_iter_delete(fi);
+                wit_field_iter_delete(s, fi);
             }
             break;
         
         case WITType::Variant:
             {
                 WITCaseIter* ci;
-                CHECK(wit_variant_case_walk(td, &ci));
+                CHECK(wit_variant_case_walk(s, td, &ci));
 
-                while (!wit_case_iter_off(ci))
+                while (!wit_case_iter_off(s, ci))
                 {
                     const WITTypeDef* cty;
-                    CHECK(wit_case_iter_at(ci, &cty));
+                    CHECK(wit_case_iter_at(s, ci, &cty));
 
-                    printType(cty, indent + 1);
-                    CHECK(wit_case_iter_next(ci));
+                    printType(s, cty, indent + 1);
+                    CHECK(wit_case_iter_next(s, ci));
                 }
-                wit_case_iter_delete(ci);
+                wit_case_iter_delete(s, ci);
             }
             break;
 
         case WITType::List:
             {
                 const WITTypeDef* ty;
-                CHECK(wit_array_elem_typedef_get(td, &ty));
+                CHECK(wit_array_elem_typedef_get(s, td, &ty));
 
-                printType(ty, indent + 1);
+                printType(s, ty, indent + 1);
             }
             break;
 
@@ -193,13 +194,13 @@ void printType(const WITTypeDef* td, int indent)
     }
 }
 
-void printSigPart(const WITSignature* sig, WITSigPart part)
+void printSigPart(WITSession* s, const WITSignature* sig, WITSigPart part)
 {
     printIndent(1);
     printf("%s: [", wasmSigPart2Str(part));
 
     size_t len;
-    CHECK(wit_sig_length_get(sig, part, &len));
+    CHECK(wit_sig_length_get(s, sig, part, &len));
 
     for (int i = 0; i < len; ++i)
     {
@@ -207,53 +208,53 @@ void printSigPart(const WITSignature* sig, WITSigPart part)
             printf(", ");
 
         WASMType ty;
-        CHECK(wit_sig_type_get_by_index(sig, part, i, &ty));
+        CHECK(wit_sig_type_get_by_index(s, sig, part, i, &ty));
 
         printf("%s", wasmType2Str(ty));
     }
     printf("]\n");
 }
 
-void printSig(const WITFunction* func)
+void printSig(WITSession* s, const WITFunction* func)
 {
     printf("Signature:\n");
 
     const WITSignature* sig;
-    CHECK(wit_func_sig_get(func, &sig));
+    CHECK(wit_func_sig_get(s, func, &sig));
 
-    printSigPart(sig, WITSigPart::Params);
-    printSigPart(sig, WITSigPart::Results);
-    printSigPart(sig, WITSigPart::RetPtr);
+    printSigPart(s, sig, WITSigPart::Params);
+    printSigPart(s, sig, WITSigPart::Results);
+    printSigPart(s, sig, WITSigPart::RetPtr);
 }
 
-void printFunc(const WITFunction* func)
+void printFunc(WITSession* s, const WITFunction* func)
 {
     printf("Params:\n");
     WITTypeDefIter* tdIter;
-    CHECK(wit_func_param_walk(func, &tdIter));
-    while (!wit_typedef_iter_off(tdIter))
+    CHECK(wit_func_param_walk(s, func, &tdIter));
+    while (!wit_typedef_iter_off(s, tdIter))
     {
         const WITTypeDef* td;
-        CHECK(wit_typedef_iter_at(tdIter, &td));
+        CHECK(wit_typedef_iter_at(s, tdIter, &td));
 
-        printType(td, 1);
+        printType(s, td, 1);
 
-        CHECK(wit_typedef_iter_next(tdIter));
+        CHECK(wit_typedef_iter_next(s, tdIter));
     }
-    wit_typedef_iter_delete(tdIter);
+    wit_typedef_iter_delete(s, tdIter);
 
     printf("Results:\n");
-    CHECK(wit_func_result_walk(func, &tdIter));
-    while (!wit_typedef_iter_off(tdIter))
+    CHECK(wit_func_result_walk(s, func, &tdIter));
+    while (!wit_typedef_iter_off(s, tdIter))
     {
         const WITTypeDef* td;
-        CHECK(wit_typedef_iter_at(tdIter, &td));
+        CHECK(wit_typedef_iter_at(s, tdIter, &td));
 
-        printType(td, 1);
+        printType(s, td, 1);
 
-        CHECK(wit_typedef_iter_next(tdIter));
+        CHECK(wit_typedef_iter_next(s, tdIter));
     }
-    wit_typedef_iter_delete(tdIter);
+    wit_typedef_iter_delete(s, tdIter);
 }
 
 char *readWIT(const char *path, long *len)
@@ -297,23 +298,30 @@ int main(int argc, char *argv[])
 
     long contentLen;
     char* content = readWIT(argv[1], &contentLen);
+    WITSession* s = wit_session_new();
+    if (!s)
+    {
+        fprintf(stderr, "Error allocating WIT session.");
+        exit(1);
+    }
+
     WIT* wit;
-    CHECK(wit_parse(reinterpret_cast<uint8_t*>(content), contentLen, &wit));
+    CHECK(wit_parse(s, reinterpret_cast<uint8_t*>(content), contentLen, &wit));
     free(content);
 
     if (argc == 2)
     {
         size_t count;
-        CHECK(wit_func_count_get(wit, &count));
+        CHECK(wit_func_count_get(s, wit, &count));
 
         printf("Functions:\n");
         for (int i = 0; i < count; ++i)
         {
             const WITFunction* func;
-            CHECK(wit_func_get_by_index(wit, i, &func));
+            CHECK(wit_func_get_by_index(s, wit, i, &func));
 
             const char* name;
-            CHECK(wit_func_name_get(func, &name));
+            CHECK(wit_func_name_get(s, func, &name));
 
             printf("  %s\n", name);
         }
@@ -323,13 +331,14 @@ int main(int argc, char *argv[])
         const char *funcName = argv[2];
 
         const WITFunction* func;
-        CHECK(wit_func_get_by_name(wit, funcName, &func));
+        CHECK(wit_func_get_by_name(s, wit, funcName, &func));
     
         printf("Func Name: %s\n", funcName);
-        printSig(func);
-        printFunc(func);
+        printSig(s, func);
+        printFunc(s, func);
     }
-    wit_delete(wit);
+    wit_delete(s, wit);
+    wit_session_delete(s);
 
     return 0;
 }
