@@ -148,7 +148,7 @@ macro_rules! ffi_return {
         match res {
             Ok(r) => r,
             Err(e) => {
-                error_set($s, anyhow!("Caught Rust panic: {:?}", e));
+                error_set(unsafe { &mut *$s }, anyhow!("Caught Rust panic: {:?}", e));
                 false
             },
         }
