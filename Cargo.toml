@@ -6,8 +6,8 @@ edition = "2018"
 [dependencies]
 anyhow = "1.0"
 libc = "0.2.103"
-wit-bindgen-rust = { git = "https://github.com/bytecodealliance/wit-bindgen.git", rev = "c9b113be144ba8418fb4a86a5993e0c44a7d64b3" }
-parser = { git = "https://github.com/bytecodealliance/wit-bindgen.git", package="wit-parser", rev = "c9b113be144ba8418fb4a86a5993e0c44a7d64b3" }
+wit-bindgen-rust = { git = "https://github.com/bytecodealliance/wit-bindgen.git" }
+parser = { git = "https://github.com/bytecodealliance/wit-bindgen.git", package="wit-parser" }
 
 [lib]
 crate-type = ["staticlib", "cdylib", "rlib"]
