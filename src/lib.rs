@@ -501,7 +501,8 @@ fn subtypedef_get_maybe<'a>(which: i32, iface: &'a Rc<Interface>, align: &'a Rc<
     if let Type::Id(id) = ty {
         match which {
             1 => match &iface.types[*id].kind {
-                TypeDefKind::List(subty) => Ok(
+                TypeDefKind::List(subty) |
+                TypeDefKind::Type(subty) => Ok(
                     Some(
                         Box::new(
                             WITTypeDef {
@@ -912,10 +913,43 @@ fn _wit_expected_typedef_get(get_ok: bool, td: *const WITTypeDef, res: *mut *con
 }
 
 #[no_mangle]
-pub extern "C" fn wit_array_elem_typedef_get(s: *mut WITSession, td: *const WITTypeDef, res: *mut *const WITTypeDef) -> bool {
-    ffi_return!(s, _wit_array_elem_typedef_get(td, res))
+pub extern "C" fn wit_type_aliased_typedef_get(s: *mut WITSession, td: *const WITTypeDef, res: *mut *const WITTypeDef) -> bool {
+    ffi_return!(s, _wit_type_aliased_typedef_get(td, res))
 }
-fn _wit_array_elem_typedef_get(td: *const WITTypeDef, res: *mut *const WITTypeDef) -> Result<()> {
+fn _wit_type_aliased_typedef_get(td: *const WITTypeDef, res: *mut *const WITTypeDef) -> Result<()> {
+    if td.is_null() || res.is_null() {
+        return Err(anyhow!("Invalid argument"));
+    }
+    let td = unsafe {
+        &*td
+    };
+    if let Type::Id(id) = &td.ty {
+        if let TypeDefKind::Type(_) = &td.iface.types[*id].kind {
+            // Return cached subtype, if it exists.
+            match &td.subty1 {
+                Some(subty) => {
+                    unsafe {
+                        *res = &**subty as *const WITTypeDef;
+                    }
+                    Ok(())
+                },
+                _ => {
+                    Err(anyhow!("Could not determine aliased type!"))
+                }
+            }
+        } else {
+            Err(anyhow!("Invalid parameter.  Must be 'type' type!"))
+        }
+    } else {
+        Err(anyhow!("Invalid parameter.  Must be 'type' type!"))
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn wit_list_elem_typedef_get(s: *mut WITSession, td: *const WITTypeDef, res: *mut *const WITTypeDef) -> bool {
+    ffi_return!(s, _wit_list_elem_typedef_get(td, res))
+}
+fn _wit_list_elem_typedef_get(td: *const WITTypeDef, res: *mut *const WITTypeDef) -> Result<()> {
     if td.is_null() || res.is_null() {
         return Err(anyhow!("Invalid argument"));
     }

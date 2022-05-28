@@ -165,7 +165,16 @@ void printType(WITSession* s, const WITTypeDef* td, int indent)
         case WITType::List:
             {
                 const WITTypeDef* ty;
-                CHECK(wit_array_elem_typedef_get(s, td, &ty));
+                CHECK(wit_list_elem_typedef_get(s, td, &ty));
+
+                printType(s, ty, indent + 1);
+            }
+            break;
+
+        case WITType::Type:
+            {
+                const WITTypeDef* ty;
+                CHECK(wit_type_aliased_typedef_get(s, td, &ty));
 
                 printType(s, ty, indent + 1);
             }

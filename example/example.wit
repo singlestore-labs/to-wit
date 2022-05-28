@@ -11,7 +11,9 @@ record polarity-scores {
     neutral: float64,
 }
 
-sentiment: function(input: string) -> polarity-scores
+type pscores = polarity-scores
+
+sentiment: function(input: string) -> pscores
 
 //////////////////////////////////////////////////////////////////////////////
 
