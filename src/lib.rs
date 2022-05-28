@@ -137,7 +137,8 @@ pub enum WITType {
     Expected,
     Option,
     Union,
-    Unknown,
+    Handle,
+    Type,
 }
 
 pub struct WITError {
@@ -1005,42 +1006,35 @@ fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()>
     let td = unsafe {
         &*td
     };
-    let ty = 
-        match &td.ty {
-            Type::Unit => WITType::Unit,
-            Type::Bool => WITType::Bool,
-            Type::U8 => WITType::U8,
-            Type::U16 => WITType::U16,
-            Type::U32 => WITType::U32,
-            Type::U64 => WITType::U64,
-            Type::S8 => WITType::S8,
-            Type::S16 => WITType::S16,
-            Type::S32 => WITType::S32,
-            Type::S64 => WITType::S64,
-            Type::Float32 => WITType::Float32,
-            Type::Float64 => WITType::Float64,
-            Type::Char => WITType::Char,
-            Type::String => WITType::String,
-            Type::Handle(_) => WITType::Unknown,  // Unsupported for now
-            Type::Id(id) => {
-                // Looking for a list or record type.
-                match td.iface.types[*id].kind {
-                    TypeDefKind::Flags(_) => WITType::Flags,
-                    TypeDefKind::Expected(_) => WITType::Expected,
-                    TypeDefKind::Option(_) => WITType::Option,
-                    TypeDefKind::Union(_) => WITType::Union,
-                    TypeDefKind::Enum(_) => WITType::Enum,
-                    TypeDefKind::Tuple(_) => WITType::Tuple,
-                    TypeDefKind::Record(_) => WITType::Record,
-                    TypeDefKind::List(_) => WITType::List,
-                    TypeDefKind::Variant(_) => WITType::Variant,
-                    _ => WITType::Unknown
-                }
-            },
-        };
-    if ty == WITType::Unknown {
-        return Err(anyhow!("Unsupported type"));
-    }
+    let ty = match &td.ty {
+        Type::Unit => WITType::Unit,
+        Type::Bool => WITType::Bool,
+        Type::U8 => WITType::U8,
+        Type::U16 => WITType::U16,
+        Type::U32 => WITType::U32,
+        Type::U64 => WITType::U64,
+        Type::S8 => WITType::S8,
+        Type::S16 => WITType::S16,
+        Type::S32 => WITType::S32,
+        Type::S64 => WITType::S64,
+        Type::Float32 => WITType::Float32,
+        Type::Float64 => WITType::Float64,
+        Type::Char => WITType::Char,
+        Type::String => WITType::String,
+        Type::Handle(_) => WITType::Handle,
+        Type::Id(id) => match td.iface.types[*id].kind {
+            TypeDefKind::Flags(_) => WITType::Flags,
+            TypeDefKind::Expected(_) => WITType::Expected,
+            TypeDefKind::Option(_) => WITType::Option,
+            TypeDefKind::Union(_) => WITType::Union,
+            TypeDefKind::Enum(_) => WITType::Enum,
+            TypeDefKind::Tuple(_) => WITType::Tuple,
+            TypeDefKind::Record(_) => WITType::Record,
+            TypeDefKind::List(_) => WITType::List,
+            TypeDefKind::Variant(_) => WITType::Variant,
+            TypeDefKind::Type(_) => WITType::Type,
+        },
+    };
     unsafe {
         *res = ty;
     }

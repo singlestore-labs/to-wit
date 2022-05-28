@@ -46,16 +46,17 @@ const char *witType2Str(WITType wt)
         case WITType::Float64:  return "Float64";
         case WITType::Char:     return "Char";
         case WITType::String:   return "String";
+        case WITType::Handle:   return "Handle";
         case WITType::Flags:    return "Flags";
-        case WITType::Record:   return "Record";
-        case WITType::List:     return "List";
-        case WITType::Variant:  return "Variant";
-        case WITType::Tuple:    return "Tuple";
-        case WITType::Enum:     return "Enum";
         case WITType::Expected: return "Expected";
         case WITType::Option:   return "Option";
         case WITType::Union:    return "Union";
-        case WITType::Unknown:  return "Unknown";
+        case WITType::Enum:     return "Enum";
+        case WITType::Tuple:    return "Tuple";
+        case WITType::Record:   return "Record";
+        case WITType::List:     return "List";
+        case WITType::Variant:  return "Variant";
+        case WITType::Type:     return "Type";
     }
     assert(false);
     return NULL;
