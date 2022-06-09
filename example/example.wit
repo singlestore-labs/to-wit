@@ -13,13 +13,13 @@ record polarity-scores {
 
 type pscores = polarity-scores
 
-sentiment: function(input: string) -> pscores
+sentiment: func(input: string) -> pscores
 
 //////////////////////////////////////////////////////////////////////////////
 
-square: function(input: s32) -> s32
+square: func(input: s32) -> s32
 
-square-with-err: function(input: s32) -> expected<s32, string>
+square-with-err: func(input: s32) -> expected<s32, string>
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +32,7 @@ record split-output {
     c: string,
 }
 
-split: function(input: split-input) -> list<split-output>
+split: func(input: split-input) -> list<split-output>
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -43,5 +43,5 @@ record hilbert-input {
     scale: float64,
 }
 
-hilbert-encode: function(input: hilbert-input) -> string
+hilbert-encode: func(input: hilbert-input) -> string
 

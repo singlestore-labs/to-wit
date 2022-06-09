@@ -57,6 +57,7 @@ const char *witType2Str(WITType wt)
         case WITType::List:     return "List";
         case WITType::Variant:  return "Variant";
         case WITType::Type:     return "Type";
+        case WITType::Stream:   return "Stream";
     }
     assert(false);
     return NULL;

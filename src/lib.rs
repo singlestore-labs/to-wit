@@ -139,6 +139,7 @@ pub enum WITType {
     Union,
     Handle,
     Type,
+    Stream,
 }
 
 pub struct WITError {
@@ -1067,6 +1068,7 @@ fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()>
             TypeDefKind::List(_) => WITType::List,
             TypeDefKind::Variant(_) => WITType::Variant,
             TypeDefKind::Type(_) => WITType::Type,
+            TypeDefKind::Stream(_) => WITType::Stream,
         },
     };
     unsafe {
