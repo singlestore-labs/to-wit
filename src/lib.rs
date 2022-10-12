@@ -140,6 +140,7 @@ pub enum WITType {
     Handle,
     Type,
     Stream,
+    Future,
 }
 
 pub struct WITError {
@@ -238,7 +239,7 @@ pub extern "C" fn wit_session_delete(s: *mut WITSession) {
         return;
     }
     unsafe {
-        Box::from_raw(s);
+        drop(Box::from_raw(s));
     }
 }
 
@@ -297,7 +298,7 @@ pub extern "C" fn wit_delete(_s: *mut WITSession, wit: *mut WIT) {
         return;
     }
     unsafe {
-        Box::from_raw(wit);
+        drop(Box::from_raw(wit));
     }
 }
 
@@ -503,7 +504,8 @@ fn subtypedef_get_maybe<'a>(which: i32, iface: &'a Rc<Interface>, align: &'a Rc<
         match which {
             1 => match &iface.types[*id].kind {
                 TypeDefKind::List(subty) |
-                TypeDefKind::Type(subty) => Ok(
+                TypeDefKind::Type(subty) |
+                TypeDefKind::Option(subty) => Ok(
                     Some(
                         Box::new(
                             WITTypeDef {
@@ -582,7 +584,7 @@ fn _wit_typedef_iter_at(iter: *const WITTypeDefIter, res: *mut *const WITTypeDef
 pub extern "C" fn wit_typedef_iter_delete(_s: *mut WITSession, iter: *mut WITTypeDefIter) {
     if !iter.is_null() {
         unsafe {
-            Box::from_raw(iter);
+            drop(Box::from_raw(iter));
         }
     }
 }
@@ -709,7 +711,7 @@ fn _wit_field_iter_at<'a>(iter: *const WITFieldIter<'a>, res: *mut *const WITTyp
 pub extern "C" fn wit_field_iter_delete(_s: *mut WITSession, iter: *mut WITFieldIter) {
     if !iter.is_null() {
         unsafe {
-            Box::from_raw(iter);
+            drop(Box::from_raw(iter));
         }
     }
 }
@@ -867,7 +869,7 @@ fn _wit_case_iter_at<'a>(iter: *const WITCaseIter<'a>, res: *mut *const WITTypeD
 pub extern "C" fn wit_case_iter_delete(_s: *mut WITSession, iter: *mut WITCaseIter) {
     if !iter.is_null() {
         unsafe {
-            Box::from_raw(iter);
+            drop(Box::from_raw(iter));
         }
     }
 }
@@ -910,6 +912,37 @@ fn _wit_expected_typedef_get(get_ok: bool, td: *const WITTypeDef, res: *mut *con
         }
     } else {
         Err(anyhow!("Invalid parameter.  Must be 'expected' type!"))
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn wit_option_typedef_get(s: *mut WITSession, td: *const WITTypeDef, res: *mut *const WITTypeDef) -> bool {
+    ffi_return!(s, _wit_option_typedef_get(td, res))
+}
+fn _wit_option_typedef_get(td: *const WITTypeDef, res: *mut *const WITTypeDef) -> Result<()> {
+    if td.is_null() || res.is_null() {
+        return Err(anyhow!("Invalid argument"))
+    }
+    let td = unsafe { &*td };
+    if let Type::Id(id) = &td.ty {
+        if let TypeDefKind::Option(_) = &td.iface.types[*id].kind {
+            // Return cached subtype, if it exists.
+            match &td.subty1 {
+                Some(subty) => {
+                    unsafe {
+                        *res = &**subty as *const WITTypeDef;
+                    }
+                    Ok(())
+                },
+                _ => {
+                    Err(anyhow!("Could not determine option type!"))
+                }
+            }
+        } else {
+            Err(anyhow!("Invalid parameter.  Must be 'option' type!"))
+        }
+    } else {
+        Err(anyhow!("Invalid parameter.  Must be 'option' type!"))
     }
 }
 
@@ -1069,6 +1102,7 @@ fn _wit_typedef_type_get(td: *const WITTypeDef, res: *mut WITType) -> Result<()>
             TypeDefKind::Variant(_) => WITType::Variant,
             TypeDefKind::Type(_) => WITType::Type,
             TypeDefKind::Stream(_) => WITType::Stream,
+            TypeDefKind::Future(_) => WITType::Future,
         },
     };
     unsafe {

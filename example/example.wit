@@ -45,3 +45,12 @@ record hilbert-input {
 
 hilbert-encode: func(input: hilbert-input) -> string
 
+//////////////////////////////////////////////////////////////////////////////
+
+record maybe-output {
+    name:  option<string>,
+    value: float64,
+}
+
+compute-maybe: func(input1: hilbert-input, maybe-input2: option<s32>) -> option<maybe-output>
+
