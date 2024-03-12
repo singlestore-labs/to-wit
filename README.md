@@ -1,4 +1,7 @@
 # to-wit: A C/C++ WIT Parser
+
+**Attention**: The code in this repository is intended for experimental use only and is not fully tested, documented, or supported by SingleStore. Visit the [SingleStore Forums](https://www.singlestore.com/forum/) to ask questions about this repository.
+
 This library provides an C-based FFI wrapper around the
 [wit-bindgen](https://github.com/bytecodealliance/wit-bindgen) parsing
 API (written natively in Rust).  It enables C/C++ programs to parse WIT specs 
